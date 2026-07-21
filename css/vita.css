@@ -1,0 +1,483 @@
+/* ============================================================
+   VITA v4 — Voice Intelligence & Thrive Assistant
+   Dark Vibrant Glassmorphism with Gradient Glow
+   ============================================================ */
+
+/* ===== The Floating Orb ===== */
+#vita-orb {
+    position: fixed;
+    bottom: calc(var(--nav-height) + var(--safe-bottom) + 18px);
+    right: 18px;
+    z-index: 200;
+    width: 56px;
+    height: 56px;
+    border-radius: var(--radius-full);
+    background: linear-gradient(135deg, #8B5CF6, #FF6B35);
+    border: 1.5px solid rgba(255, 255, 255, 0.15);
+    box-shadow: 0 4px 25px rgba(139, 92, 246, 0.35), 0 0 40px rgba(255, 107, 53, 0.15);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.3s var(--ease-spring), box-shadow 0.3s ease, background 0.3s ease;
+    -webkit-user-select: none;
+    user-select: none;
+    animation: vitaFloat 4s ease-in-out infinite;
+}
+
+#vita-orb:hover {
+    transform: scale(1.12);
+    box-shadow: 0 6px 35px rgba(139, 92, 246, 0.45), 0 0 50px rgba(255, 107, 53, 0.25);
+}
+
+#vita-orb:active {
+    transform: scale(0.92);
+    transition-timing-function: var(--ease-spring);
+}
+
+/* Orb icon — SVG mic */
+#vita-orb svg {
+    width: 24px;
+    height: 24px;
+    stroke: white;
+    fill: none;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    transition: opacity 0.2s;
+    filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.4));
+}
+
+/* Ambient float */
+@keyframes vitaFloat {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-5px); }
+}
+
+/* ===== Orb Glow Rings (behind the orb) ===== */
+#vita-orb::before,
+#vita-orb::after {
+    content: '';
+    position: absolute;
+    border-radius: var(--radius-full);
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.4s ease, transform 0.4s ease;
+}
+
+#vita-orb::before {
+    inset: -6px;
+    background: transparent;
+    border: 2px solid rgba(139, 92, 246, 0.30);
+}
+
+#vita-orb::after {
+    inset: -14px;
+    background: transparent;
+    border: 1.5px solid rgba(255, 107, 53, 0.20);
+}
+
+
+/* ===== STATE: Listening ===== */
+#vita-orb.listening {
+    animation: vitaPulse 1.2s ease-in-out infinite;
+    background: linear-gradient(135deg, #8B5CF6, #A78BFA);
+    box-shadow: 0 4px 30px rgba(139, 92, 246, 0.5), 0 0 50px rgba(139, 92, 246, 0.2);
+}
+
+#vita-orb.listening::before {
+    opacity: 1;
+    animation: vitaRingPulse 1.6s ease-in-out infinite;
+}
+
+#vita-orb.listening::after {
+    opacity: 1;
+    animation: vitaRingPulse 1.6s ease-in-out infinite 0.3s;
+}
+
+@keyframes vitaPulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.08); }
+}
+
+@keyframes vitaRingPulse {
+    0%, 100% { transform: scale(1); opacity: 0.7; }
+    50% { transform: scale(1.2); opacity: 0.1; }
+}
+
+
+/* ===== STATE: Thinking ===== */
+#vita-orb.thinking {
+    animation: vitaGlowCycle 2s ease-in-out infinite;
+    background: linear-gradient(135deg, #8B5CF6, #FF6B35, #06D6A0);
+    background-size: 200% 200%;
+}
+
+@keyframes vitaGlowCycle {
+    0% { background-position: 0% 50%; box-shadow: 0 4px 25px rgba(139, 92, 246, 0.4); }
+    50% { background-position: 100% 50%; box-shadow: 0 6px 35px rgba(255, 107, 53, 0.4); }
+    100% { background-position: 0% 50%; box-shadow: 0 4px 25px rgba(139, 92, 246, 0.4); }
+}
+
+
+/* ===== STATE: Speaking ===== */
+#vita-orb.speaking {
+    animation: vitaSpeak 0.6s ease-in-out infinite alternate;
+    background: linear-gradient(135deg, #06D6A0, #34E8B8);
+    box-shadow: 0 4px 25px rgba(6, 214, 160, 0.4), 0 0 40px rgba(6, 214, 160, 0.15);
+}
+
+@keyframes vitaSpeak {
+    0% { transform: scale(1); }
+    100% { transform: scale(1.06); }
+}
+
+
+/* ===== STATE: Error ===== */
+#vita-orb.error {
+    animation: vitaShake 0.5s ease-in-out;
+    background: linear-gradient(135deg, #EC4899, #F472B6);
+    box-shadow: 0 4px 25px rgba(236, 72, 153, 0.4);
+}
+
+@keyframes vitaShake {
+    0%, 100% { transform: translateX(0); }
+    20% { transform: translateX(-4px); }
+    40% { transform: translateX(4px); }
+    60% { transform: translateX(-3px); }
+    80% { transform: translateX(3px); }
+}
+
+
+/* ===== Vita Response Panel ===== */
+#vita-panel {
+    position: fixed;
+    bottom: calc(var(--nav-height) + var(--safe-bottom) + 82px);
+    right: 16px;
+    left: 16px;
+    max-width: 420px;
+    margin-left: auto;
+    z-index: 199;
+    background: rgba(18, 20, 43, 0.92);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border: 1px solid rgba(139, 92, 246, 0.20);
+    border-radius: 20px;
+    padding: 0;
+    overflow: hidden;
+    box-shadow: 0 8px 50px rgba(0, 0, 0, 0.5), 0 0 30px rgba(139, 92, 246, 0.1);
+    transform: translateY(20px) scale(0.95);
+    opacity: 0;
+    pointer-events: none;
+    transition: transform 0.35s var(--ease-spring), opacity 0.25s ease;
+}
+
+#vita-panel.active {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+    pointer-events: all;
+}
+
+/* Panel header */
+.vita-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 16px 10px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.vita-panel-title {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 0.9rem;
+    background: linear-gradient(135deg, #FFFFFF, #A78BFA);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+/* Panel action buttons group */
+.vita-panel-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.vita-panel-close {
+    width: 28px;
+    height: 28px;
+    border-radius: var(--radius-full);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(255, 255, 255, 0.4);
+    font-size: 0.9rem;
+    transition: background var(--duration-fast), color var(--duration-fast), transform var(--duration-fast);
+}
+
+.vita-panel-close:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: white;
+    transform: rotate(90deg);
+}
+
+/* TTS Control Buttons */
+.vita-tts-toggle,
+.vita-tts-stop {
+    width: 28px;
+    height: 28px;
+    border-radius: var(--radius-full);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(255, 255, 255, 0.5);
+    transition: background 0.2s, color 0.2s, transform 0.15s var(--ease-spring);
+    cursor: pointer;
+}
+
+.vita-tts-toggle svg,
+.vita-tts-stop svg {
+    fill: currentColor;
+    stroke: none;
+}
+
+.vita-tts-toggle:hover {
+    background: rgba(6, 214, 160, 0.15);
+    color: #06D6A0;
+    transform: scale(1.15);
+}
+
+.vita-tts-stop:hover {
+    background: rgba(236, 72, 153, 0.15);
+    color: #EC4899;
+    transform: scale(1.15);
+}
+
+/* Transcript area */
+.vita-transcript {
+    padding: 10px 16px;
+    font-size: 0.8rem;
+    color: rgba(255, 255, 255, 0.4);
+    font-style: italic;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    min-height: 28px;
+}
+
+.vita-transcript::before {
+    content: '🎙️ ';
+}
+
+/* Response body */
+.vita-response {
+    padding: 14px 16px 16px;
+    font-size: 0.9rem;
+    line-height: 1.65;
+    color: rgba(255, 255, 255, 0.90);
+    max-height: 240px;
+    overflow-y: auto;
+}
+
+.vita-response::-webkit-scrollbar {
+    width: 3px;
+}
+
+.vita-response::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.12);
+    border-radius: 2px;
+}
+
+
+/* ===== Quick Commands Menu ===== */
+.vita-quick-cmds {
+    padding: 0 16px 12px;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.vita-quick-cmds-label {
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.35);
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    padding: 10px 0 8px;
+}
+
+.vita-quick-cmds-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 6px;
+    max-height: 180px;
+    overflow-y: auto;
+    padding-right: 4px;
+}
+
+.vita-quick-cmds-grid::-webkit-scrollbar { width: 2px; }
+.vita-quick-cmds-grid::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 2px; }
+
+.vita-cmd-chip {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 10px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    font-size: 0.72rem;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.6);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-align: left;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.vita-cmd-chip:hover {
+    background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+    border-color: var(--primary);
+    color: white;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 20px rgba(139, 92, 246, 0.3);
+}
+
+.vita-cmd-chip:active {
+    transform: scale(0.93);
+    transition-timing-function: var(--ease-spring);
+}
+
+.vita-cmd-icon {
+    font-size: 0.9rem;
+    flex-shrink: 0;
+}
+
+.vita-cmd-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+
+/* Text Input Fallback */
+.vita-input-container {
+    padding: 10px 16px 14px;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    background: rgba(255, 255, 255, 0.03);
+}
+
+#vita-text-form {
+    display: flex;
+    gap: 8px;
+}
+
+#vita-text-input {
+    flex: 1;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    padding: 8px 12px;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    color: white;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+}
+
+#vita-text-input:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.20), 0 0 15px rgba(139, 92, 246, 0.15);
+}
+
+#vita-text-submit {
+    color: white;
+    background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+    border: none;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s var(--ease-spring);
+    box-shadow: 0 2px 12px rgba(139, 92, 246, 0.3);
+}
+
+#vita-text-submit:hover {
+    transform: scale(1.1);
+    box-shadow: 0 4px 20px rgba(139, 92, 246, 0.5);
+}
+
+/* Thinking indicator */
+.vita-thinking-dots {
+    display: inline-flex;
+    gap: 4px;
+    align-items: center;
+    padding: 14px 16px;
+}
+
+.vita-thinking-dots span {
+    width: 7px;
+    height: 7px;
+    border-radius: var(--radius-full);
+    background: linear-gradient(135deg, #8B5CF6, #FF6B35);
+    animation: vitaDotBounce 1.4s ease-in-out infinite;
+}
+
+.vita-thinking-dots span:nth-child(2) { animation-delay: 0.15s; }
+.vita-thinking-dots span:nth-child(3) { animation-delay: 0.3s; }
+
+@keyframes vitaDotBounce {
+    0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+    40% { transform: scale(1.1); opacity: 1; }
+}
+
+
+/* ===== Vita Waveform Visualizer (inside orb during listening) ===== */
+.vita-waveform {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    height: 24px;
+}
+
+.vita-waveform span {
+    width: 3px;
+    height: 8px;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(167, 139, 250, 0.8));
+    border-radius: 2px;
+    animation: vitaWave 0.8s ease-in-out infinite alternate;
+}
+
+.vita-waveform span:nth-child(1) { animation-delay: 0s; height: 10px; }
+.vita-waveform span:nth-child(2) { animation-delay: 0.1s; height: 16px; }
+.vita-waveform span:nth-child(3) { animation-delay: 0.2s; height: 22px; }
+.vita-waveform span:nth-child(4) { animation-delay: 0.3s; height: 16px; }
+.vita-waveform span:nth-child(5) { animation-delay: 0.4s; height: 10px; }
+
+@keyframes vitaWave {
+    0% { height: 6px; }
+    100% { height: 22px; }
+}
+
+
+/* ===== Mobile Responsive ===== */
+@media (min-width: 768px) {
+    #vita-panel {
+        right: 24px;
+        left: auto;
+        min-width: 380px;
+        max-width: 440px;
+    }
+
+    #vita-orb {
+        right: 24px;
+        bottom: calc(var(--nav-height) + var(--safe-bottom) + 24px);
+    }
+
+    .vita-quick-cmds-grid {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}

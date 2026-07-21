@@ -1,0 +1,48 @@
+{
+    "name": "Thrive — Life OS",
+    "short_name": "Thrive",
+    "description": "Your hyper-personalized Life OS for peak productivity, financial clarity, and creative flow.",
+    "id": "/",
+    "start_url": "/index.html",
+    "display": "standalone",
+    "orientation": "portrait",
+    "background_color": "#0B0D1A",
+    "theme_color": "#0B0D1A",
+    
+    "icons": [
+        {
+            "src": "icons/icon-192.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "any maskable"
+        },
+        {
+            "src": "icons/icon-512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "any maskable"
+        }
+    ],
+    "screenshots": [
+        {
+            "src": "icons/screenshot-wide.png",
+            "sizes": "1920x1080",
+            "type": "image/png",
+            "form_factor": "wide"
+        },
+        {
+            "src": "icons/screenshot-narrow.png",
+            "sizes": "1080x1920",
+            "type": "image/png",
+            "form_factor": "narrow"
+        }
+    ],
+    "shortcuts": [
+        {
+            "name": "Dashboard",
+            "short_name": "Home",
+            "url": "/index.html",
+            "icons": [{ "src": "icons/icon-64.png", "sizes": "64x64", "type": "image/png" }]
+        }
+    ]
+}
