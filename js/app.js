@@ -32,6 +32,7 @@ const ThriveApp = (() => {
         if (typeof DashboardModule !== 'undefined') DashboardModule.init();
         if (typeof CreativeModule !== 'undefined') CreativeModule.init();
         if (typeof FinanceModule !== 'undefined') FinanceModule.init();
+        if (typeof BuyModule !== 'undefined') BuyModule.init();
         if (typeof PomodoroModule !== 'undefined') PomodoroModule.init();
         if (typeof ChecklistModule !== 'undefined') ChecklistModule.init();
         if (typeof RemindersModule !== 'undefined') RemindersModule.init();

@@ -16,6 +16,10 @@ app.register_blueprint(vita_bp)
 from rss_proxy import rss_bp
 app.register_blueprint(rss_bp)
 
+# Register Buy Analyzer (Should I Buy This) Blueprint
+from buy_routes import buy_bp
+app.register_blueprint(buy_bp)
+
 # Fetch Supabase REST API credentials
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY")

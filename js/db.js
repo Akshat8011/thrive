@@ -6,7 +6,7 @@
 
 const ThriveDB = (() => {
     const DB_NAME = 'ThriveLifeOS';
-    const DB_VERSION = 5;
+    const DB_VERSION = 6;
     let _db = null;
 
     const STORES = [
@@ -166,6 +166,14 @@ const ThriveDB = (() => {
             name: 'focusMusic',
             keyPath: 'id',
             indexes: []
+        },
+        {
+            name: 'buyDecisions',
+            keyPath: 'id',
+            indexes: [
+                { name: 'by_date', keyPath: 'date', options: { unique: false } },
+                { name: 'by_band', keyPath: 'band', options: { unique: false } }
+            ]
         }
     ];
 
