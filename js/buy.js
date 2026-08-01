@@ -1094,17 +1094,140 @@ const BuyModule = (() => {
         });
     }
 
+    function titleFromUrl(url) {
+        try {
+            const u = new URL(url.startsWith('http') ? url : 'https://' + url);
+            const path = decodeURIComponent(u.pathname || '');
+            let m = path.match(/\/([^/]{5,})\/dp\/[A-Z0-9]{8,}/i);
+            if (m) return m[1].replace(/-/g, ' ').trim();
+            m = path.match(/\/([^/]{5,})\/p\/[a-z0-9]+/i);
+            if (m) return m[1].replace(/-/g, ' ').trim();
+            const parts = path.split('/').filter(Boolean);
+            const last = parts[parts.length - 1] || '';
+            if (last.length > 4 && !/^[A-Z0-9]{8,}$/i.test(last)) {
+                return last.replace(/[-_]/g, ' ').trim();
+            }
+            return u.hostname.replace(/^www\./, '');
+        } catch (_) {
+            return 'Product';
+        }
+    }
+
+    function isJunkTitle(title) {
+        if (!title) return true;
+        const t = title.trim().toLowerCase();
+        return !t || t.length < 3
+            || ['amazon.in', 'amazon.com', 'page not found', 'flipkart', 'error', 'site maintenance'].includes(t)
+            || t.includes('service unavailable') || t.includes('access denied');
+    }
+
+    async function fetchMicrolinkClient(url) {
+        const endpoint = 'https://api.microlink.io?url=' + encodeURIComponent(url);
+        const res = await fetch(endpoint);
+        const data = await res.json().catch(() => ({}));
+        if (data.status !== 'success' || !data.data) return null;
+        const d = data.data;
+        const image = (d.image && (d.image.url || d.image)) || '';
+        return {
+            ok: true,
+            url: d.url || url,
+            host: (() => { try { return new URL(d.url || url).hostname.replace(/^www\./, ''); } catch (_) { return ''; } })(),
+            title: d.title || '',
+            description: d.description || '',
+            image: typeof image === 'string' ? image : '',
+            price: null,
+            currency: 'INR',
+            rating: null,
+            review_count: null,
+            brand: d.publisher || '',
+            availability: '',
+            sentiment: { score: 55, summary: 'Loaded via browser metadata fallback.' },
+            sources: ['microlink-client'],
+            partial: true,
+            note: 'Loaded via browser fallback. Confirm price before analyzing.'
+        };
+    }
+
+    function mergeProductData(primary, fallback, url) {
+        const base = primary && primary.ok ? primary : (fallback && fallback.ok ? fallback : null);
+        const other = base === primary ? fallback : primary;
+        const out = Object.assign({
+            ok: true,
+            url,
+            host: '',
+            title: '',
+            description: '',
+            image: '',
+            price: null,
+            currency: 'INR',
+            rating: null,
+            review_count: null,
+            brand: '',
+            availability: '',
+            sentiment: { score: 55, summary: 'Best-effort product read.' },
+            sources: [],
+            partial: true,
+            note: ''
+        }, base || {});
+
+        if (other && other.ok) {
+            if (isJunkTitle(out.title) && !isJunkTitle(other.title)) out.title = other.title;
+            if (!out.description && other.description) out.description = other.description;
+            if (!out.image && other.image) out.image = other.image;
+            if (out.price == null && other.price != null) out.price = other.price;
+            if (out.rating == null && other.rating != null) out.rating = other.rating;
+            if (out.review_count == null && other.review_count != null) out.review_count = other.review_count;
+            if (!out.brand && other.brand) out.brand = other.brand;
+            out.sources = Array.from(new Set([...(out.sources || []), ...(other.sources || [])]));
+        }
+        if (isJunkTitle(out.title)) out.title = titleFromUrl(url);
+        if (!out.host) {
+            try { out.host = new URL(out.url || url).hostname.replace(/^www\./, ''); } catch (_) {}
+        }
+        out.ok = true;
+        return out;
+    }
+
     async function fetchProduct(url) {
-        const res = await fetch('/api/buy/analyze', {
+        let cleaned = (url || '').trim().split(/\s+/)[0].replace(/^<|>$/g, '');
+        if (!/^https?:\/\//i.test(cleaned)) cleaned = 'https://' + cleaned;
+
+        let serverData = null;
+        let clientData = null;
+        let serverErr = null;
+
+        // Run server + browser microlink in parallel for reliability
+        const serverP = fetch('/api/buy/analyze', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ url })
-        });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok || !data.ok) {
-            throw new Error(data.error || 'Could not analyze product link');
+            body: JSON.stringify({ url: cleaned })
+        }).then(async res => {
+            const data = await res.json().catch(() => ({}));
+            if (data && data.ok) return data;
+            throw new Error((data && data.error) || `Server returned ${res.status}`);
+        }).catch(err => { serverErr = err; return null; });
+
+        const clientP = fetchMicrolinkClient(cleaned).catch(() => null);
+
+        const settled = await Promise.all([serverP, clientP]);
+        serverData = settled[0];
+        clientData = settled[1];
+
+        const merged = mergeProductData(serverData, clientData, cleaned);
+        if (!serverData && !clientData) {
+            // Absolute last resort — still succeed so analysis can continue
+            return mergeProductData({
+                ok: true,
+                url: cleaned,
+                title: titleFromUrl(cleaned),
+                description: 'Could not read the store page (blocked). Enter price manually.',
+                sources: ['url-heuristic'],
+                partial: true,
+                note: (serverErr && serverErr.message) ? serverErr.message : 'Store blocked automated reads.',
+                sentiment: { score: 50, summary: 'No page content available.' }
+            }, null, cleaned);
         }
-        return data;
+        return merged;
     }
 
     function applyProductToForm(product) {
@@ -1128,6 +1251,9 @@ const BuyModule = (() => {
         }));
         if (product.sentiment && product.sentiment.summary) {
             info.appendChild(Utils.el('p', { className: 'buy-product-desc', textContent: product.sentiment.summary }));
+        }
+        if (product.note) {
+            info.appendChild(Utils.el('p', { className: 'buy-product-desc', textContent: product.note }));
         }
         row.appendChild(info);
         preview.appendChild(row);
@@ -1219,9 +1345,26 @@ const BuyModule = (() => {
             try {
                 const product = await fetchProduct(url);
                 applyProductToForm(product);
-                Utils.toast('Product details loaded', 'success');
+                if (product.price != null) {
+                    Utils.toast('Product details loaded', 'success');
+                } else if (product.partial) {
+                    Utils.toast('Link read — enter/confirm the price', 'warning');
+                } else {
+                    Utils.toast('Product details loaded', 'success');
+                }
             } catch (e) {
-                Utils.toast(e.message || 'Could not read link', 'error');
+                // Still try to prefill from URL so user is never stuck
+                const fallback = mergeProductData({
+                    ok: true,
+                    url,
+                    title: titleFromUrl(url),
+                    description: 'Enter price manually to continue.',
+                    partial: true,
+                    sources: ['url-heuristic'],
+                    sentiment: { score: 50, summary: 'Manual entry mode.' }
+                }, null, url);
+                applyProductToForm(fallback);
+                Utils.toast('Could not fully read store — title filled, enter price', 'warning');
             } finally {
                 if (btn) { btn.disabled = false; btn.textContent = '🔎 Read link'; }
             }
