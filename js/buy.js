@@ -62,7 +62,7 @@ const BuyModule = (() => {
     }
 
     function clamp(n, a = 0, b = 100) {
-        return Math.max(a, Math.min(b, n));
+        return Math.round(Math.max(a, Math.min(b, Number(n) || 0)));
     }
 
     async function init() {
