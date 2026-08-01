@@ -8,7 +8,7 @@ Personal life OS — habits, knowledge hub, and voice-assisted productivity in a
 
 - Daily tracking and personal dashboard (PWA-ready)
 - Financial Ledger with budgets, debts, and spending trends
-- **Should I Buy This?** — paste a product link, answer honest questions, and get a ledger-aware spendability meter plus a 100+ parameter audit (buy / wait / don't)
+- **Should I?** — product-link buys and daily-life decisions (movies, dinner, travel, treats) with a life-balance meter and 100+ parameter audit — save wisely, still enjoy life (separate from Financial Ledger)
 - Knowledge hub via RSS proxy
 - Vita voice-assistant routes
 - Flask backend with optional Supabase sync

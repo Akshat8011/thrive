@@ -1,18 +1,20 @@
 /* ============================================================
-   THRIVE — Should I Buy This (BuyModule)
-   Big-brother purchase advisor: ledger-aware, 100+ parameters.
+   THRIVE — Should I? (BuyModule)
+   Product buys + daily life decisions.
+   No Financial Ledger dependency — answers-driven only.
+   Balance: save wisely, still enjoy life.
    ============================================================ */
 
 const BuyModule = (() => {
     let _product = null;
     let _lastReport = null;
-    let _answers = {};
+    let _mode = 'product'; // product | life
 
-    const QUESTIONS = [
+    const PRODUCT_QUESTIONS = [
         { id: 'necessity', label: 'How necessary is this for you right now?', type: 'scale', min: 1, max: 5, hints: ['Pure want', 'Nice to have', 'Useful', 'Important', 'Critical need'] },
-        { id: 'work_impact', label: 'Is your work / studies hampered without this?', type: 'scale', min: 1, max: 5, hints: ['Not at all', 'Slightly', 'Somewhat', 'Quite a bit', 'Severely'] },
+        { id: 'work_impact', label: 'Is work / study / daily function hurt without it?', type: 'scale', min: 1, max: 5, hints: ['Not at all', 'Slightly', 'Somewhat', 'Quite a bit', 'Severely'] },
         { id: 'already_own', label: 'Do you already own something that does a similar job?', type: 'choice', options: [
-            { v: 'no', t: 'No alternative' }, { v: 'partial', t: 'Partial alternative' }, { v: 'yes', t: 'Yes, I already have one' }
+            { v: 'no', t: 'No alternative' }, { v: 'partial', t: 'Partial alternative' }, { v: 'yes', t: 'Yes, already have one' }
         ]},
         { id: 'usage_freq', label: 'How often will you actually use it?', type: 'choice', options: [
             { v: 'daily', t: 'Daily' }, { v: 'weekly', t: 'Weekly' }, { v: 'monthly', t: 'Monthly' }, { v: 'rarely', t: 'Rarely / once' }
@@ -27,33 +29,122 @@ const BuyModule = (() => {
         { id: 'researched', label: 'Have you compared alternatives / prices?', type: 'choice', options: [
             { v: 'deep', t: 'Deep research' }, { v: 'some', t: 'Some comparison' }, { v: 'none', t: 'No, just this link' }
         ]},
-        { id: 'value_add', label: 'What primary value does it add to your life?', type: 'choice', options: [
+        { id: 'value_add', label: 'What primary value does it add?', type: 'choice', options: [
             { v: 'career', t: 'Career / skills' }, { v: 'health', t: 'Health' }, { v: 'time', t: 'Saves time' },
             { v: 'joy', t: 'Joy / comfort' }, { v: 'status', t: 'Status / looks' }, { v: 'replace', t: 'Replaces broken item' }
         ]},
-        { id: 'save_first', label: 'Could you wait and save for it instead?', type: 'choice', options: [
+        { id: 'quality_need', label: 'Do you specifically need THIS quality/brand tier?', type: 'choice', options: [
+            { v: 'yes', t: 'Yes, cheaper ones fail me' }, { v: 'maybe', t: 'Maybe mid-range is fine' }, { v: 'no', t: 'Any decent one works' }
+        ]},
+        { id: 'can_afford', label: 'Can you pay for this without stress or borrowing?', type: 'choice', options: [
+            { v: 'easy', t: 'Easily, no stress' }, { v: 'ok', t: 'Yes, but I\'ll feel it' }, { v: 'tight', t: 'It would stretch me' }, { v: 'no', t: 'Not really / would borrow' }
+        ]},
+        { id: 'save_first', label: 'Could you wait and save for it?', type: 'choice', options: [
             { v: 'no', t: 'Must buy now' }, { v: 'maybe', t: 'Could wait a bit' }, { v: 'yes', t: 'Yes, I can save' }
         ]},
-        { id: 'debt_risk', label: 'Would buying this put you into debt or delay debt payoff?', type: 'choice', options: [
+        { id: 'recent_buys', label: 'How many non-essential buys in the last 2 weeks?', type: 'choice', options: [
+            { v: '0', t: 'None' }, { v: '1', t: 'One' }, { v: '2', t: 'Two–three' }, { v: 'many', t: 'A streak of them' }
+        ]},
+        { id: 'debt_risk', label: 'Would this create debt or delay paying someone back?', type: 'choice', options: [
             { v: 'no', t: 'No debt impact' }, { v: 'delay', t: 'Delays payoff' }, { v: 'yes', t: 'Creates / worsens debt' }
         ]},
         { id: 'regretted_similar', label: 'Have you regretted a similar purchase before?', type: 'choice', options: [
             { v: 'no', t: 'Never' }, { v: 'once', t: 'Once' }, { v: 'often', t: 'Often' }
         ]},
-        { id: 'shared_use', label: 'Will others also benefit from this?', type: 'choice', options: [
+        { id: 'shared_use', label: 'Will others also benefit?', type: 'choice', options: [
             { v: 'many', t: 'Family / team' }, { v: 'one', t: 'Just me' }, { v: 'gift', t: "It's a gift" }
         ]},
         { id: 'maintenance', label: 'Ongoing cost (subs, parts, power, fees)?', type: 'choice', options: [
             { v: 'none', t: 'None' }, { v: 'low', t: 'Low' }, { v: 'high', t: 'High / recurring' }
         ]},
-        { id: 'space', label: 'Do you have space / setup ready for it?', type: 'choice', options: [
+        { id: 'space', label: 'Do you have space / setup ready?', type: 'choice', options: [
             { v: 'yes', t: 'Ready' }, { v: 'maybe', t: 'Need to arrange' }, { v: 'no', t: 'No space yet' }
         ]},
         { id: 'mood', label: 'Are you buying this to fix a mood / stress?', type: 'choice', options: [
             { v: 'no', t: 'Clear-headed' }, { v: 'partly', t: 'Partly emotional' }, { v: 'yes', t: 'Retail therapy' }
         ]},
+        { id: 'future_thanks', label: 'Will future-you thank present-you in 6 months?', type: 'scale', min: 1, max: 5, hints: ['Will regret', 'Doubtful', 'Neutral', 'Probably yes', 'Absolutely'] },
+        { id: 'joy_value', label: 'How much real joy / relief would owning this bring?', type: 'scale', min: 1, max: 5, hints: ['Almost none', 'A little', 'Some', 'A lot', 'Huge lift'] },
+        { id: 'life_beyond', label: 'Are you denying yourself too hard lately?', type: 'choice', options: [
+            { v: 'yes', t: 'Yes, I\'ve been very strict' }, { v: 'balanced', t: 'Mostly balanced' }, { v: 'no', t: 'No, I treat myself often' }
+        ]},
+        { id: 'secondhand', label: 'Did you check used / cheaper / borrow options?', type: 'choice', options: [
+            { v: 'yes', t: 'Checked — this is best' }, { v: 'no', t: 'Didn\'t check' }, { v: 'na', t: 'Not possible for this' }
+        ]},
+        { id: 'return_policy', label: 'Easy returns if it disappoints?', type: 'choice', options: [
+            { v: 'yes', t: 'Yes, easy returns' }, { v: 'maybe', t: 'Possible but annoying' }, { v: 'no', t: 'Hard / no returns' }
+        ]},
         { id: 'goals_align', label: 'Does this align with your current goals?', type: 'scale', min: 1, max: 5, hints: ['Conflicts', 'Neutral', 'Somewhat', 'Supports', 'Directly advances'] },
-        { id: 'notes', label: 'Anything else I should know? (optional)', type: 'text', placeholder: 'e.g. sale ends tonight, needed for a project, friend recommended…' }
+        { id: 'identity', label: 'Are you buying who you are — or who you wish you looked like?', type: 'choice', options: [
+            { v: 'real', t: 'Real need / real me' }, { v: 'mix', t: 'A bit of both' }, { v: 'image', t: 'Mostly image / vibe' }
+        ]},
+        { id: 'waste_risk', label: 'Chance it becomes unused clutter?', type: 'scale', min: 1, max: 5, hints: ['Almost none', 'Low', 'Maybe', 'Likely', 'Very likely'] },
+        { id: 'notes', label: 'Anything else I should know? (optional)', type: 'text', placeholder: 'Sale ends tonight, needed for a project, friend recommended, why this model…' }
+    ];
+
+    const LIFE_QUESTIONS = [
+        { id: 'why_now', label: 'Why this, why today?', type: 'choice', options: [
+            { v: 'joy', t: 'I want joy / fun' }, { v: 'rest', t: 'I need rest / comfort' },
+            { v: 'social', t: 'People / relationship' }, { v: 'memory', t: 'Make a memory' },
+            { v: 'convenience', t: 'Convenience / tired' }, { v: 'fomo', t: 'FOMO / habit / boredom' }
+        ]},
+        { id: 'heart_pull', label: 'How strongly does your heart want this?', type: 'scale', min: 1, max: 5, hints: ['Meh', 'Mild want', 'Clear want', 'Really want', 'Deeply need this feeling'] },
+        { id: 'body_energy', label: 'How is your body/energy right now?', type: 'choice', options: [
+            { v: 'drained', t: 'Drained — need care' }, { v: 'ok', t: 'Okay' }, { v: 'high', t: 'Energized / restless' }
+        ]},
+        { id: 'emotional_state', label: 'Emotional weather check', type: 'choice', options: [
+            { v: 'low', t: 'Sad / lonely / stressed' }, { v: 'flat', t: 'Bored / numb' },
+            { v: 'calm', t: 'Calm & clear' }, { v: 'happy', t: 'Already happy' }
+        ]},
+        { id: 'can_afford', label: 'Can you spend this without money anxiety afterward?', type: 'choice', options: [
+            { v: 'easy', t: 'Easily' }, { v: 'ok', t: 'Yes, mild pinch' }, { v: 'tight', t: 'It\'ll sting' }, { v: 'no', t: 'Would regret the cost' }
+        ]},
+        { id: 'recent_treats', label: 'Have you had a similar treat recently?', type: 'choice', options: [
+            { v: 'long', t: 'Not in a long while' }, { v: 'week', t: 'Within a week' }, { v: 'yesterday', t: 'Yesterday / today already' }, { v: 'streak', t: 'I\'ve been on a streak' }
+        ]},
+        { id: 'memory_value', label: 'Will this become a warm memory later?', type: 'scale', min: 1, max: 5, hints: ['Forgettable', 'Maybe', 'Somewhat', 'Yes', 'Core memory vibes'] },
+        { id: 'connection', label: 'Does this deepen connection with someone you care about?', type: 'choice', options: [
+            { v: 'yes', t: 'Yes, shared moment' }, { v: 'solo', t: 'Solo — for me' }, { v: 'no', t: 'Not really social' }
+        ]},
+        { id: 'alternative', label: 'Is there a cheaper way to get ~80% of the feeling?', type: 'choice', options: [
+            { v: 'no', t: 'No good substitute' }, { v: 'partial', t: 'Partial substitute exists' }, { v: 'yes', t: 'Yes, easy cheaper option' }
+        ]},
+        { id: 'health', label: 'Health / sleep / tomorrow-you impact?', type: 'choice', options: [
+            { v: 'good', t: 'Neutral or good' }, { v: 'mild', t: 'Mild downside' }, { v: 'bad', t: 'Will hurt tomorrow' }
+        ]},
+        { id: 'obligation', label: 'Are you doing this from pressure or true want?', type: 'choice', options: [
+            { v: 'want', t: 'True want' }, { v: 'mix', t: 'Mix' }, { v: 'pressure', t: 'Pressure / guilt / FOMO' }
+        ]},
+        { id: 'scarcity', label: 'Is this a rare window (travel, show, people visiting)?', type: 'choice', options: [
+            { v: 'rare', t: 'Rare / time-sensitive' }, { v: 'sometime', t: 'Can happen again soon' }, { v: 'anytime', t: 'Anytime available' }
+        ]},
+        { id: 'self_kindness', label: 'Have you been too hard on yourself with money lately?', type: 'choice', options: [
+            { v: 'yes', t: 'Yes — over-restricting' }, { v: 'balanced', t: 'Balanced' }, { v: 'loose', t: 'I\'ve been spending freely' }
+        ]},
+        { id: 'waste_feel', label: 'Does spending this feel wasteful in your gut?', type: 'scale', min: 1, max: 5, hints: ['Not wasteful', 'Slightly', 'Mixed', 'Kinda wasteful', 'Very wasteful'] },
+        { id: 'presence', label: 'Will you actually be present for it (not phone-scrolling through it)?', type: 'choice', options: [
+            { v: 'yes', t: 'Yes, I\'ll savor it' }, { v: 'maybe', t: 'Maybe' }, { v: 'no', t: 'Probably distracted' }
+        ]},
+        { id: 'values', label: 'Does this match the life you want — not just a dopamine hit?', type: 'scale', min: 1, max: 5, hints: ['Conflicts', 'Neutral', 'Somewhat', 'Fits', 'Deeply fits'] },
+        { id: 'tomorrow_feel', label: 'How will you feel about this tomorrow morning?', type: 'choice', options: [
+            { v: 'glad', t: 'Glad I did it' }, { v: 'fine', t: 'Fine either way' }, { v: 'meh', t: 'Probably meh' }, { v: 'regret', t: 'Likely regret' }
+        ]},
+        { id: 'swap', label: 'Would skipping this free money for something you care about more?', type: 'choice', options: [
+            { v: 'no', t: 'No bigger priority waiting' }, { v: 'maybe', t: 'Maybe' }, { v: 'yes', t: 'Yes — I should protect that instead' }
+        ]},
+        { id: 'home_option', label: 'Could a simple at-home version still feel good tonight?', type: 'choice', options: [
+            { v: 'no', t: 'Home won\'t cut it' }, { v: 'somewhat', t: 'Somewhat' }, { v: 'yes', t: 'Yes, home can work' }
+        ]},
+        { id: 'company_quality', label: 'If with people — is the company worth it?', type: 'choice', options: [
+            { v: 'yes', t: 'Yes / going solo for me' }, { v: 'mixed', t: 'Mixed company' }, { v: 'no', t: 'Draining company' }, { v: 'na', t: 'N/A' }
+        ]},
+        { id: 'habit_loop', label: 'Is this becoming an autopilot habit (order out, scroll-buy, etc.)?', type: 'choice', options: [
+            { v: 'no', t: 'Intentional choice' }, { v: 'forming', t: 'Starting to be habit' }, { v: 'yes', t: 'Autopilot habit' }
+        ]},
+        { id: 'gratitude', label: 'Can you name what you\'re grateful for today without this?', type: 'choice', options: [
+            { v: 'yes', t: 'Yes, I can' }, { v: 'hard', t: 'Hard right now' }, { v: 'no', t: 'Feeling empty' }
+        ]},
+        { id: 'notes', label: 'Anything else on your heart? (optional)', type: 'text', placeholder: 'Who you\'re with, why it matters, what you\'re tired of, what you hope to feel…' }
     ];
 
     function fmt(n) {
@@ -65,132 +156,47 @@ const BuyModule = (() => {
         return Math.round(Math.max(a, Math.min(b, Number(n) || 0)));
     }
 
+    function num(v, fallback = 0) {
+        const n = parseInt(v, 10);
+        return Number.isNaN(n) ? fallback : n;
+    }
+
     async function init() {
-        renderQuestionnaire();
+        renderQuestions('buy-questions', PRODUCT_QUESTIONS);
+        renderQuestions('life-questions', LIFE_QUESTIONS);
         await renderHistory();
         wireEvents();
-        await refreshFinanceStrip();
+        setMode('product');
     }
 
-    async function loadFinanceContext() {
-        const today = Utils.todayStr();
-        const month = Utils.monthStr();
-        const weekStart = Utils.weekStart();
-        const weekEnd = Utils.weekEnd();
-
-        const monthExp = await ThriveDB.getAll('expenses', 'by_month', month);
-        const monthInc = await ThriveDB.getAll('income', 'by_month', month);
-        const budgets = await ThriveDB.getAll('budgets', 'by_month', month);
-        const debts = await ThriveDB.getAll('debts');
-        const todayExp = await ThriveDB.getAll('expenses', 'by_date', today);
-        const purchases = await ThriveDB.getAll('purchases', 'by_date', today);
-        const goals = await ThriveDB.getAll('goals').catch(() => []);
-        const milestones = await ThriveDB.getAll('milestones').catch(() => []);
-
-        let weekSpend = 0;
-        const start = new Date(weekStart + 'T00:00:00');
-        const end = new Date(weekEnd + 'T00:00:00');
-        for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-            const ds = d.toISOString().split('T')[0];
-            const dayE = await ThriveDB.getAll('expenses', 'by_date', ds);
-            weekSpend += dayE.reduce((s, e) => s + (e.amount || 0), 0);
-        }
-
-        const monthSpend = monthExp.reduce((s, e) => s + (e.amount || 0), 0);
-        const monthIncome = monthInc.reduce((s, i) => s + (i.amount || 0), 0);
-        const budget = budgets.length ? (budgets[0].amount || 0) : 0;
-        const budgetLeft = budget > 0 ? budget - monthSpend : null;
-        const shoppingSpend = monthExp.filter(e => e.category === 'shopping').reduce((s, e) => s + (e.amount || 0), 0);
-        const entertainmentSpend = monthExp.filter(e => e.category === 'entertainment').reduce((s, e) => s + (e.amount || 0), 0);
-        const educationSpend = monthExp.filter(e => e.category === 'education').reduce((s, e) => s + (e.amount || 0), 0);
-
-        const openLent = debts.filter(d => d.debtType === 'lent' && !d.settled);
-        const openBorrowed = debts.filter(d => d.debtType === 'borrowed' && !d.settled);
-        const totalLent = openLent.reduce((s, d) => s + (d.amount || 0), 0);
-        const totalBorrowed = openBorrowed.reduce((s, d) => s + (d.amount || 0), 0);
-
-        const catTotals = {};
-        monthExp.forEach(e => { catTotals[e.category] = (catTotals[e.category] || 0) + (e.amount || 0); });
-        const topCategory = Object.entries(catTotals).sort((a, b) => b[1] - a[1])[0] || null;
-
-        const daysInMonth = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
-        const dayOfMonth = new Date().getDate();
-        const expectedPaceSpend = budget > 0 ? (budget * dayOfMonth / daysInMonth) : null;
-        const avgDailySpend = dayOfMonth > 0 ? monthSpend / dayOfMonth : 0;
-        const projectedMonthSpend = avgDailySpend * daysInMonth;
-
-        const recentDays = [];
-        for (let i = 0; i < 14; i++) {
-            const d = new Date(); d.setDate(d.getDate() - i);
-            recentDays.push(d.toISOString().split('T')[0]);
-        }
-        let last14 = 0;
-        for (const ds of recentDays) {
-            const dayE = await ThriveDB.getAll('expenses', 'by_date', ds);
-            last14 += dayE.reduce((s, e) => s + (e.amount || 0), 0);
-        }
-
-        return {
-            today, month, weekSpend,
-            todaySpend: todayExp.reduce((s, e) => s + (e.amount || 0), 0),
-            monthSpend, monthIncome, budget, budgetLeft,
-            shoppingSpend, entertainmentSpend, educationSpend,
-            totalLent, totalBorrowed,
-            openLentCount: openLent.length,
-            openBorrowedCount: openBorrowed.length,
-            expenseCount: monthExp.length,
-            incomeCount: monthInc.length,
-            topCategory: topCategory ? { name: topCategory[0], amount: topCategory[1] } : null,
-            expectedPaceSpend, avgDailySpend, projectedMonthSpend,
-            last14Spend: last14,
-            purchaseListCount: purchases.length,
-            goals: goals || [],
-            milestones: milestones || [],
-            monthExpenses: monthExp,
-            dayOfMonth, daysInMonth
-        };
-    }
-
-    async function refreshFinanceStrip() {
-        const fin = await loadFinanceContext();
-        const el = document.getElementById('buy-finance-strip');
-        if (!el) return;
-        el.innerHTML = '';
-        const cards = [
-            { label: 'Budget left', value: fin.budgetLeft === null ? 'Not set' : fmt(fin.budgetLeft), tone: (fin.budgetLeft !== null && fin.budgetLeft < 0) ? 'bad' : 'ok' },
-            { label: 'Month spend', value: fmt(fin.monthSpend), tone: 'neutral' },
-            { label: 'Month income', value: fmt(fin.monthIncome), tone: 'ok' },
-            { label: 'Week spend', value: fmt(fin.weekSpend), tone: 'neutral' },
-            { label: 'Open debts', value: fmt(fin.totalBorrowed), tone: fin.totalBorrowed > 0 ? 'warn' : 'ok' },
-            { label: 'Shopping (mo)', value: fmt(fin.shoppingSpend), tone: 'neutral' }
-        ];
-        cards.forEach(c => {
-            el.appendChild(Utils.el('div', { className: `buy-fin-chip buy-fin-${c.tone}` },
-                Utils.el('span', { className: 'buy-fin-label', textContent: c.label }),
-                Utils.el('span', { className: 'buy-fin-value', textContent: c.value })
-            ));
+    function setMode(mode) {
+        _mode = mode;
+        document.querySelectorAll('.buy-mode-tab').forEach(t => {
+            t.classList.toggle('active', t.dataset.buymode === mode);
         });
+        document.getElementById('buy-mode-product')?.classList.toggle('hidden', mode !== 'product');
+        document.getElementById('buy-mode-life')?.classList.toggle('hidden', mode !== 'life');
+        const report = document.getElementById('buy-report');
+        if (report) { report.classList.add('hidden'); report.innerHTML = ''; }
     }
 
-    function renderQuestionnaire() {
-        const box = document.getElementById('buy-questions');
+    function renderQuestions(containerId, questions) {
+        const box = document.getElementById(containerId);
         if (!box) return;
         box.innerHTML = '';
-        QUESTIONS.forEach((q, idx) => {
-            const card = Utils.el('div', { className: 'buy-q-card', dataset: { qid: q.id } });
+        questions.forEach((q, idx) => {
+            const card = Utils.el('div', { className: 'buy-q-card', dataset: { qid: q.id, qset: containerId } });
             card.appendChild(Utils.el('div', { className: 'buy-q-num', textContent: String(idx + 1).padStart(2, '0') }));
-            card.appendChild(Utils.el('label', { className: 'buy-q-label', textContent: q.label, for: `buy-q-${q.id}` }));
+            card.appendChild(Utils.el('label', { className: 'buy-q-label', textContent: q.label }));
 
             if (q.type === 'scale') {
                 const row = Utils.el('div', { className: 'buy-scale-row' });
                 for (let i = q.min; i <= q.max; i++) {
-                    const id = `buy-q-${q.id}-${i}`;
+                    const id = `${containerId}-${q.id}-${i}`;
                     const wrap = Utils.el('label', { className: 'buy-scale-opt', for: id });
-                    wrap.appendChild(Utils.el('input', { type: 'radio', name: `buy-q-${q.id}`, id, value: String(i) }));
+                    wrap.appendChild(Utils.el('input', { type: 'radio', name: `${containerId}-${q.id}`, id, value: String(i) }));
                     wrap.appendChild(Utils.el('span', { textContent: String(i) }));
-                    if (q.hints && q.hints[i - q.min]) {
-                        wrap.title = q.hints[i - q.min];
-                    }
+                    if (q.hints && q.hints[i - q.min]) wrap.title = q.hints[i - q.min];
                     row.appendChild(wrap);
                 }
                 card.appendChild(row);
@@ -200,16 +206,16 @@ const BuyModule = (() => {
             } else if (q.type === 'choice') {
                 const row = Utils.el('div', { className: 'buy-choice-row' });
                 q.options.forEach((opt, oi) => {
-                    const id = `buy-q-${q.id}-${oi}`;
+                    const id = `${containerId}-${q.id}-${oi}`;
                     const wrap = Utils.el('label', { className: 'buy-choice-opt', for: id });
-                    wrap.appendChild(Utils.el('input', { type: 'radio', name: `buy-q-${q.id}`, id, value: opt.v }));
+                    wrap.appendChild(Utils.el('input', { type: 'radio', name: `${containerId}-${q.id}`, id, value: opt.v }));
                     wrap.appendChild(Utils.el('span', { textContent: opt.t }));
                     row.appendChild(wrap);
                 });
                 card.appendChild(row);
             } else if (q.type === 'text') {
                 card.appendChild(Utils.el('textarea', {
-                    id: `buy-q-${q.id}`,
+                    id: `${containerId}-${q.id}`,
                     className: 'buy-q-text',
                     placeholder: q.placeholder || '',
                     rows: '2',
@@ -220,648 +226,575 @@ const BuyModule = (() => {
         });
     }
 
-    function collectAnswers() {
+    function collectAnswers(containerId, questions) {
         const answers = {};
-        QUESTIONS.forEach(q => {
+        questions.forEach(q => {
             if (q.type === 'text') {
-                const el = document.getElementById(`buy-q-${q.id}`);
+                const el = document.getElementById(`${containerId}-${q.id}`);
                 answers[q.id] = el ? el.value.trim() : '';
             } else {
-                const checked = document.querySelector(`input[name="buy-q-${q.id}"]:checked`);
+                const checked = document.querySelector(`input[name="${containerId}-${q.id}"]:checked`);
                 answers[q.id] = checked ? checked.value : null;
             }
         });
         return answers;
     }
 
-    function mark(status, detail, score) {
-        return { status, detail, score: clamp(score) };
+    function addParam(list, category, label, status, detail, score, weight = 1) {
+        list.push({ category, label, status, detail, score: clamp(score), weight });
     }
 
-    /** Build 100+ judged parameters from product + answers + ledger */
-    function buildParameters(product, answers, fin, price) {
-        const a = answers;
-        const nec = parseInt(a.necessity || '0', 10);
-        const work = parseInt(a.work_impact || '0', 10);
-        const impulse = parseInt(a.impulse || '0', 10);
-        const goalsAlign = parseInt(a.goals_align || '0', 10);
-        const budget = fin.budget || 0;
-        const budgetLeft = fin.budgetLeft;
-        const income = fin.monthIncome || 0;
+    function buildProductParameters(product, a, price) {
+        const P = [];
+        const nec = num(a.necessity);
+        const work = num(a.work_impact);
+        const impulse = num(a.impulse);
+        const goalsAlign = num(a.goals_align);
+        const future = num(a.future_thanks);
+        const joy = num(a.joy_value);
+        const waste = num(a.waste_risk);
         const rating = product.rating;
         const reviews = product.review_count;
         const sentiment = (product.sentiment && product.sentiment.score) || 50;
-        const pctBudget = budget > 0 ? (price / budget) * 100 : null;
-        const pctIncome = income > 0 ? (price / income) * 100 : null;
-        const pctLeft = (budgetLeft !== null && budgetLeft > 0) ? (price / budgetLeft) * 100 : null;
-        const afterBuyLeft = budgetLeft !== null ? budgetLeft - price : null;
         const usageMap = { daily: 95, weekly: 75, monthly: 45, rarely: 20 };
         const lifeMap = { years: 90, year: 70, months: 40, once: 15 };
-        const urgMap = { now: 40, soon: 55, later: 80, never: 85 };
+        const affordMap = { easy: 92, ok: 68, tight: 35, no: 12 };
 
-        const P = [];
-        const add = (category, label, status, detail, score, weight = 1) => {
-            P.push({ category, label, status, detail, score: clamp(score), weight });
-        };
+        // Money comfort (self-reported — NOT ledger)
+        addParam(P, 'Money Comfort', 'Self-reported affordability',
+            a.can_afford === 'easy' || a.can_afford === 'ok' ? 'pass' : a.can_afford === 'tight' ? 'warn' : a.can_afford ? 'fail' : 'info',
+            a.can_afford ? `You said: ${a.can_afford}.` : 'Not answered.',
+            affordMap[a.can_afford] || 40, 1.8);
+        addParam(P, 'Money Comfort', 'Price band awareness',
+            price <= 500 ? 'pass' : price <= 2000 ? 'pass' : price <= 10000 ? 'warn' : 'info',
+            `${fmt(price)} — ${price <= 500 ? 'small ticket' : price <= 2000 ? 'moderate' : price <= 10000 ? 'serious buy' : 'major decision'}.`,
+            price <= 500 ? 85 : price <= 2000 ? 75 : price <= 10000 ? 55 : 40, 1.0);
+        addParam(P, 'Money Comfort', 'Recent non-essential streak',
+            a.recent_buys === '0' || a.recent_buys === '1' ? 'pass' : a.recent_buys === '2' ? 'warn' : a.recent_buys ? 'fail' : 'info',
+            a.recent_buys === 'many' ? 'You\'ve been on a buying streak — pause may help.' : a.recent_buys ? `Recent buys: ${a.recent_buys}.` : 'Not answered.',
+            ({ '0': 90, '1': 75, '2': 45, many: 20 }[a.recent_buys] || 45), 1.2);
+        addParam(P, 'Money Comfort', 'Debt / borrowing risk',
+            a.debt_risk === 'no' ? 'pass' : a.debt_risk === 'delay' ? 'warn' : a.debt_risk === 'yes' ? 'fail' : 'info',
+            a.debt_risk === 'yes' ? 'Debt for a want is a hard brake from me.' : a.debt_risk ? `Debt impact: ${a.debt_risk}.` : 'Not answered.',
+            ({ no: 90, delay: 45, yes: 10 }[a.debt_risk] || 40), 1.8);
+        addParam(P, 'Money Comfort', 'Wait-and-save option',
+            a.save_first === 'yes' ? 'pass' : a.save_first === 'maybe' ? 'warn' : a.save_first ? 'info' : 'info',
+            a.save_first === 'yes' ? 'You can save — often the wisest flex.' : a.save_first ? `Save path: ${a.save_first}.` : 'Not answered.',
+            ({ yes: 85, maybe: 60, no: 40 }[a.save_first] || 45), 1.1);
 
-        // —— Financial capacity (ledger) ——
-        add('Financial Capacity', 'Monthly budget configured', budget > 0 ? 'pass' : 'warn',
-            budget > 0 ? `Budget set at ${fmt(budget)}.` : 'No monthly budget in Financial Ledger — I am flying partly blind.',
-            budget > 0 ? 80 : 35, 1.2);
-        add('Financial Capacity', 'Budget remaining after purchase',
-            afterBuyLeft === null ? 'info' : afterBuyLeft < 0 ? 'fail' : afterBuyLeft < budget * 0.1 ? 'warn' : 'pass',
-            afterBuyLeft === null ? 'Cannot compute — set a budget in Ledger.' :
-                afterBuyLeft < 0 ? `This puts you ${fmt(Math.abs(afterBuyLeft))} OVER budget.` :
-                    `${fmt(afterBuyLeft)} would remain this month.`,
-            afterBuyLeft === null ? 40 : afterBuyLeft < 0 ? 10 : afterBuyLeft < budget * 0.1 ? 45 : 88, 1.8);
-        add('Financial Capacity', 'Price vs monthly budget',
-            pctBudget === null ? 'info' : pctBudget > 40 ? 'fail' : pctBudget > 20 ? 'warn' : 'pass',
-            pctBudget === null ? 'Budget unknown.' : `${pctBudget.toFixed(1)}% of monthly budget.`,
-            pctBudget === null ? 40 : clamp(100 - pctBudget * 2), 1.5);
-        add('Financial Capacity', 'Price vs monthly income',
-            pctIncome === null ? 'info' : pctIncome > 35 ? 'fail' : pctIncome > 15 ? 'warn' : 'pass',
-            income <= 0 ? 'No income logged this month in Ledger.' : `${pctIncome.toFixed(1)}% of logged income (${fmt(income)}).`,
-            income <= 0 ? 35 : clamp(100 - pctIncome * 2.5), 1.4);
-        add('Financial Capacity', 'Fits in remaining budget buffer',
-            pctLeft === null ? 'info' : pctLeft > 90 ? 'fail' : pctLeft > 50 ? 'warn' : 'pass',
-            pctLeft === null ? 'No remaining-budget figure.' : `Uses ${pctLeft.toFixed(0)}% of what's left.`,
-            pctLeft === null ? 40 : clamp(100 - pctLeft), 1.6);
-        add('Financial Capacity', 'Current month spend pace',
-            fin.expectedPaceSpend === null ? 'info' :
-                fin.monthSpend > fin.expectedPaceSpend * 1.15 ? 'warn' :
-                    fin.monthSpend > fin.expectedPaceSpend ? 'info' : 'pass',
-            fin.expectedPaceSpend === null ? 'Needs a budget to judge pace.' :
-                `Spent ${fmt(fin.monthSpend)} vs expected ~${fmt(fin.expectedPaceSpend)} by day ${fin.dayOfMonth}.`,
-            fin.expectedPaceSpend === null ? 50 :
-                clamp(100 - Math.max(0, (fin.monthSpend - fin.expectedPaceSpend) / (fin.budget || 1) * 120)), 1.1);
-        add('Financial Capacity', 'Projected month-end spend',
-            budget <= 0 ? 'info' : fin.projectedMonthSpend > budget * 1.1 ? 'fail' : fin.projectedMonthSpend > budget ? 'warn' : 'pass',
-            budget <= 0 ? 'No budget to project against.' :
-                `At current pace you may hit ~${fmt(fin.projectedMonthSpend)} by month end.`,
-            budget <= 0 ? 50 : clamp(100 - Math.max(0, fin.projectedMonthSpend - budget) / budget * 100), 1.2);
-        add('Financial Capacity', 'This week spending load',
-            fin.weekSpend > (budget || income || 10000) * 0.25 ? 'warn' : 'pass',
-            `Week spend so far: ${fmt(fin.weekSpend)}.`,
-            clamp(90 - (fin.weekSpend / Math.max(budget || income || 5000, 1)) * 150), 0.9);
-        add('Financial Capacity', 'Today already spent',
-            fin.todaySpend > (budget || 5000) * 0.08 ? 'warn' : 'pass',
-            `Today: ${fmt(fin.todaySpend)}. Stacking another ${fmt(price)} tonight matters.`,
-            clamp(85 - (fin.todaySpend / Math.max(budget || 5000, 1)) * 200), 0.8);
-        add('Financial Capacity', 'Last 14-day burn rate',
-            fin.last14Spend > (budget || income || 8000) * 0.6 ? 'warn' : 'pass',
-            `Last 14 days: ${fmt(fin.last14Spend)}.`,
-            clamp(90 - (fin.last14Spend / Math.max(budget || income || 8000, 1)) * 80), 0.9);
-        add('Financial Capacity', 'Shopping category pressure',
-            fin.shoppingSpend + price > (budget || 10000) * 0.25 ? 'warn' : 'pass',
-            `Shopping this month: ${fmt(fin.shoppingSpend)}. This would make it ${fmt(fin.shoppingSpend + price)}.`,
-            clamp(90 - ((fin.shoppingSpend + price) / Math.max(budget || 10000, 1)) * 200), 1.0);
-        add('Financial Capacity', 'Open borrowed debt burden',
-            fin.totalBorrowed <= 0 ? 'pass' : fin.totalBorrowed > price ? 'fail' : 'warn',
-            fin.totalBorrowed <= 0 ? 'No open borrowed debts — good.' :
-                `You still owe ${fmt(fin.totalBorrowed)} across ${fin.openBorrowedCount} open debt(s).`,
-            fin.totalBorrowed <= 0 ? 92 : clamp(40 - fin.totalBorrowed / Math.max(price, 1) * 10), 1.5);
-        add('Financial Capacity', 'Money others owe you (liquidity)',
-            fin.totalLent > 0 ? 'info' : 'pass',
-            fin.totalLent > 0 ? `${fmt(fin.totalLent)} is lent out — not in your pocket.` : 'Nothing lent out.',
-            fin.totalLent > price ? 55 : 70, 0.6);
-        add('Financial Capacity', 'Income recorded this month',
-            income > 0 ? 'pass' : 'warn',
-            income > 0 ? `${fmt(income)} income logged (${fin.incomeCount} entries).` : 'Zero income in Ledger this month.',
-            income > 0 ? 80 : 30, 1.1);
-        add('Financial Capacity', 'Expense logging discipline',
-            fin.expenseCount >= 5 ? 'pass' : fin.expenseCount > 0 ? 'info' : 'warn',
-            `${fin.expenseCount} expenses logged this month — more data = wiser call.`,
-            fin.expenseCount >= 10 ? 85 : fin.expenseCount >= 3 ? 65 : 40, 0.7);
-        add('Financial Capacity', 'Emergency buffer preservation',
-            afterBuyLeft === null ? 'info' : afterBuyLeft >= (budget || 0) * 0.2 ? 'pass' : afterBuyLeft > 0 ? 'warn' : 'fail',
-            'I want you to keep ~20% of budget as slack for surprises.',
-            afterBuyLeft === null ? 45 : afterBuyLeft >= (budget || 0) * 0.2 ? 90 : afterBuyLeft > 0 ? 50 : 15, 1.4);
-        add('Financial Capacity', 'Affordability ratio (price / avg daily spend)',
-            fin.avgDailySpend <= 0 ? 'info' : (price / fin.avgDailySpend) > 10 ? 'warn' : 'pass',
-            fin.avgDailySpend <= 0 ? 'Not enough spend history.' :
-                `Equals ~${(price / Math.max(fin.avgDailySpend, 1)).toFixed(1)} average spending days.`,
-            fin.avgDailySpend <= 0 ? 50 : clamp(100 - (price / fin.avgDailySpend) * 5), 1.0);
-        add('Financial Capacity', 'Top spending category conflict',
-            !fin.topCategory ? 'info' :
-                (fin.topCategory.name === 'shopping' || fin.topCategory.name === 'entertainment') ? 'warn' : 'pass',
-            fin.topCategory ? `Top category: ${fin.topCategory.name} (${fmt(fin.topCategory.amount)}).` : 'No category data yet.',
-            !fin.topCategory ? 50 : (fin.topCategory.name === 'shopping' ? 45 : 70), 0.7);
-        add('Financial Capacity', 'Net monthly position (income − spend − price)',
-            income <= 0 ? 'info' : (income - fin.monthSpend - price) < 0 ? 'fail' : 'pass',
-            income <= 0 ? 'Income missing.' :
-                `Net after this buy: ${fmt(income - fin.monthSpend - price)}.`,
-            income <= 0 ? 40 : clamp(50 + (income - fin.monthSpend - price) / Math.max(income, 1) * 50), 1.3);
-        add('Financial Capacity', 'Checklist purchase backlog',
-            fin.purchaseListCount > 3 ? 'warn' : 'pass',
-            fin.purchaseListCount
-                ? `You already listed ${fin.purchaseListCount} purchase(s) on today's checklist.`
-                : 'No competing purchases on today\'s checklist.',
-            fin.purchaseListCount > 5 ? 40 : fin.purchaseListCount > 0 ? 65 : 80, 0.6);
-
-        // —— Necessity & need ——
-        add('Necessity & Need', 'Self-rated necessity',
-            nec >= 4 ? 'pass' : nec === 3 ? 'warn' : nec > 0 ? 'fail' : 'info',
-            nec ? `You rated necessity ${nec}/5.` : 'Not answered.',
-            nec ? nec * 20 : 40, 1.8);
-        add('Necessity & Need', 'Work / study hampered without it',
-            work >= 4 ? 'pass' : work === 3 ? 'warn' : work > 0 ? 'fail' : 'info',
-            work ? `Work impact ${work}/5.` : 'Not answered.',
-            work ? work * 20 : 40, 1.6);
-        add('Necessity & Need', 'Existing alternative ownership',
+        // Necessity & use
+        addParam(P, 'Necessity & Use', 'Self-rated necessity', nec >= 4 ? 'pass' : nec === 3 ? 'warn' : nec ? 'fail' : 'info',
+            nec ? `Necessity ${nec}/5.` : 'Not answered.', nec ? nec * 20 : 40, 1.8);
+        addParam(P, 'Necessity & Use', 'Work / study impact', work >= 4 ? 'pass' : work === 3 ? 'warn' : work ? 'fail' : 'info',
+            work ? `Impact ${work}/5.` : 'Not answered.', work ? work * 20 : 40, 1.5);
+        addParam(P, 'Necessity & Use', 'Existing alternative',
             a.already_own === 'no' ? 'pass' : a.already_own === 'partial' ? 'warn' : a.already_own === 'yes' ? 'fail' : 'info',
-            a.already_own === 'yes' ? 'You already have something similar — upgrade tax is real.' :
-                a.already_own === 'partial' ? 'Partial alternative exists; gap must be worth the price.' :
-                    a.already_own === 'no' ? 'No substitute — stronger case.' : 'Not answered.',
-            a.already_own === 'no' ? 90 : a.already_own === 'partial' ? 55 : a.already_own === 'yes' ? 25 : 40, 1.5);
-        add('Necessity & Need', 'Replacement vs novelty',
-            a.value_add === 'replace' ? 'pass' : a.value_add ? 'info' : 'info',
-            a.value_add === 'replace' ? 'Replacing something broken — usually justified.' :
-                a.value_add ? 'Not framed as a replacement.' : 'Not answered.',
-            a.value_add === 'replace' ? 88 : 55, 1.0);
-        add('Necessity & Need', 'Deadline / urgency honesty',
-            a.urgency === 'now' && nec < 4 ? 'warn' : a.urgency === 'never' ? 'pass' : a.urgency ? 'info' : 'info',
-            a.urgency === 'now' ? 'Claiming urgency — I will verify it against necessity.' :
-                a.urgency === 'later' || a.urgency === 'never' ? 'You can wait. Waiting is a power move.' :
-                    a.urgency === 'soon' ? 'Near-term need — plan, don\'t panic-buy.' : 'Not answered.',
-            urgMap[a.urgency] || 45, 1.1);
-        add('Necessity & Need', 'True need vs desire filter',
-            nec >= 4 && impulse <= 2 ? 'pass' : nec <= 2 && impulse >= 4 ? 'fail' : 'warn',
-            'Cross-check of necessity vs impulse.',
-            nec && impulse ? clamp(nec * 18 - impulse * 10 + 40) : 45, 1.4);
-
-        // —— Usage & value ——
-        add('Usage & Value', 'Expected usage frequency',
-            a.usage_freq === 'daily' || a.usage_freq === 'weekly' ? 'pass' : a.usage_freq === 'monthly' ? 'warn' : a.usage_freq ? 'fail' : 'info',
-            a.usage_freq ? `You said: ${a.usage_freq}.` : 'Not answered.',
-            usageMap[a.usage_freq] || 40, 1.5);
+            a.already_own === 'yes' ? 'You already have something similar.' : a.already_own ? `Alternative: ${a.already_own}.` : 'Not answered.',
+            ({ no: 90, partial: 55, yes: 25 }[a.already_own] || 40), 1.5);
+        addParam(P, 'Necessity & Use', 'Usage frequency', usageMap[a.usage_freq] >= 70 ? 'pass' : usageMap[a.usage_freq] >= 40 ? 'warn' : a.usage_freq ? 'fail' : 'info',
+            a.usage_freq ? `Usage: ${a.usage_freq}.` : 'Not answered.', usageMap[a.usage_freq] || 40, 1.5);
         (() => {
             const uses = { daily: 300, weekly: 50, monthly: 12, rarely: 2 }[a.usage_freq] || 10;
             const cpu = price / uses;
-            const st = cpu > 500 ? 'fail' : cpu > 150 ? 'warn' : 'pass';
-            add('Usage & Value', 'Cost per expected use (heuristic)', st,
-                `Rough cost/use ≈ ${fmt(cpu)} (heuristic).`, clamp(100 - cpu / 8), 1.3);
+            addParam(P, 'Necessity & Use', 'Cost per use (heuristic)',
+                cpu > 500 ? 'fail' : cpu > 150 ? 'warn' : 'pass',
+                `≈ ${fmt(cpu)} per use.`, clamp(100 - cpu / 8), 1.2);
         })();
-        add('Usage & Value', 'Expected lifespan',
-            a.lifespan === 'years' || a.lifespan === 'year' ? 'pass' : a.lifespan === 'months' ? 'warn' : a.lifespan ? 'fail' : 'info',
-            a.lifespan ? `Lifespan: ${a.lifespan}.` : 'Not answered.',
-            lifeMap[a.lifespan] || 40, 1.2);
-        add('Usage & Value', 'Primary life value',
-            ['career', 'health', 'time', 'replace'].includes(a.value_add) ? 'pass' :
-                a.value_add === 'joy' ? 'warn' : a.value_add === 'status' ? 'fail' : 'info',
-            a.value_add ? `Value framing: ${a.value_add}.` : 'Not answered.',
-            ({ career: 92, health: 90, time: 85, replace: 88, joy: 55, status: 25 }[a.value_add] || 40), 1.4);
-        add('Usage & Value', 'Goal alignment',
-            goalsAlign >= 4 ? 'pass' : goalsAlign === 3 ? 'warn' : goalsAlign > 0 ? 'fail' : 'info',
-            goalsAlign ? `Goals alignment ${goalsAlign}/5.` : 'Not answered.',
-            goalsAlign ? goalsAlign * 20 : 40, 1.5);
-        add('Usage & Value', 'Shared utility',
-            a.shared_use === 'many' ? 'pass' : a.shared_use === 'gift' ? 'info' : a.shared_use ? 'warn' : 'info',
-            a.shared_use === 'many' ? 'Benefits more than you — better ROI on peace.' :
-                a.shared_use === 'gift' ? 'Gift purchase — judge by relationship value, not personal use.' :
-                    a.shared_use === 'one' ? 'Solo use — ROI rests entirely on you.' : 'Not answered.',
-            a.shared_use === 'many' ? 85 : a.shared_use === 'gift' ? 60 : a.shared_use === 'one' ? 55 : 40, 0.8);
-        add('Usage & Value', 'Setup / space readiness',
-            a.space === 'yes' ? 'pass' : a.space === 'maybe' ? 'warn' : a.space === 'no' ? 'fail' : 'info',
-            a.space === 'no' ? 'Buying gear with nowhere to put it is how closets become graveyards.' :
-                a.space === 'maybe' ? 'Arrange space first, then buy.' :
-                    a.space === 'yes' ? 'Space ready — friction low.' : 'Not answered.',
-            a.space === 'yes' ? 85 : a.space === 'maybe' ? 50 : a.space === 'no' ? 25 : 40, 0.9);
-        add('Usage & Value', 'Ongoing maintenance burden',
-            a.maintenance === 'none' ? 'pass' : a.maintenance === 'low' ? 'warn' : a.maintenance === 'high' ? 'fail' : 'info',
-            a.maintenance === 'high' ? 'Recurring costs compound — include them in the true price.' :
-                a.maintenance ? `Maintenance: ${a.maintenance}.` : 'Not answered.',
-            a.maintenance === 'none' ? 90 : a.maintenance === 'low' ? 65 : a.maintenance === 'high' ? 30 : 40, 1.0);
-        add('Usage & Value', 'Active goals count context',
-            (fin.goals || []).length > 0 ? 'info' : 'warn',
-            (fin.goals || []).length
-                ? `You track ${(fin.goals || []).length} goal(s). Does this purchase serve them?`
-                : 'No goals in Thrive — harder to judge alignment.',
-            (fin.goals || []).length > 0 ? 70 : 45, 0.5);
-        add('Usage & Value', 'Upcoming milestones pressure',
-            (fin.milestones || []).some(m => !m.completed && m.targetDate && Utils.daysUntil(m.targetDate) <= 30) ? 'warn' : 'pass',
-            (() => {
-                const soon = (fin.milestones || []).filter(m => !m.completed && m.targetDate && Utils.daysUntil(m.targetDate) <= 30);
-                return soon.length ? `${soon.length} milestone(s) within 30 days — protect focus & cash.` : 'No near-term milestone crunch.';
-            })(),
-            (() => {
-                const soon = (fin.milestones || []).filter(m => !m.completed && m.targetDate && Utils.daysUntil(m.targetDate) <= 30);
-                return soon.length ? 45 : 75;
-            })(), 0.8);
+        addParam(P, 'Necessity & Use', 'Expected lifespan', lifeMap[a.lifespan] >= 70 ? 'pass' : lifeMap[a.lifespan] >= 40 ? 'warn' : a.lifespan ? 'fail' : 'info',
+            a.lifespan ? `Lifespan: ${a.lifespan}.` : 'Not answered.', lifeMap[a.lifespan] || 40, 1.1);
+        addParam(P, 'Necessity & Use', 'Clutter / waste risk', waste <= 2 ? 'pass' : waste === 3 ? 'warn' : waste ? 'fail' : 'info',
+            waste ? `Waste risk ${waste}/5.` : 'Not answered.', waste ? clamp(110 - waste * 18) : 45, 1.3);
 
-        // —— Timing & psychology ——
-        add('Timing & Psychology', 'Impulse level',
-            impulse <= 2 ? 'pass' : impulse === 3 ? 'warn' : impulse > 0 ? 'fail' : 'info',
-            impulse ? `Impulse ${impulse}/5. Brother tip: sleep on anything ≥4.` : 'Not answered.',
-            impulse ? clamp(110 - impulse * 18) : 40, 1.7);
-        add('Timing & Psychology', 'Research depth',
+        // Heart & life (balance — not only austerity)
+        addParam(P, 'Heart & Life', 'Joy / relief value', joy >= 4 ? 'pass' : joy === 3 ? 'warn' : joy ? 'info' : 'info',
+            joy >= 4 ? 'Real joy matters — life isn\'t only spreadsheets.' : joy ? `Joy ${joy}/5.` : 'Not answered.',
+            joy ? 40 + joy * 12 : 45, 1.3);
+        addParam(P, 'Heart & Life', 'Future-you gratitude', future >= 4 ? 'pass' : future === 3 ? 'warn' : future ? 'fail' : 'info',
+            future ? `Future-you score ${future}/5.` : 'Not answered.', future ? future * 20 : 40, 1.5);
+        addParam(P, 'Heart & Life', 'Self-denial balance',
+            a.life_beyond === 'yes' && joy >= 3 && a.can_afford !== 'no' ? 'pass' :
+                a.life_beyond === 'no' && nec <= 2 ? 'warn' : a.life_beyond ? 'info' : 'info',
+            a.life_beyond === 'yes' ? 'You\'ve been strict — a thoughtful treat can be healthy if affordable.' :
+                a.life_beyond === 'no' ? 'You already treat yourself often — raise the bar for this one.' :
+                    a.life_beyond ? 'Mostly balanced lately.' : 'Not answered.',
+            a.life_beyond === 'yes' ? 78 : a.life_beyond === 'balanced' ? 70 : a.life_beyond === 'no' ? 45 : 50, 1.2);
+        addParam(P, 'Heart & Life', 'Goal alignment', goalsAlign >= 4 ? 'pass' : goalsAlign === 3 ? 'warn' : goalsAlign ? 'fail' : 'info',
+            goalsAlign ? `Goals ${goalsAlign}/5.` : 'Not answered.', goalsAlign ? goalsAlign * 20 : 40, 1.4);
+        addParam(P, 'Heart & Life', 'Identity vs utility',
+            a.identity === 'real' ? 'pass' : a.identity === 'mix' ? 'warn' : a.identity === 'image' ? 'fail' : 'info',
+            a.identity === 'image' ? 'Image buys fade; utility sticks.' : a.identity ? `Identity check: ${a.identity}.` : 'Not answered.',
+            ({ real: 88, mix: 55, image: 25 }[a.identity] || 40), 1.2);
+        addParam(P, 'Heart & Life', 'Primary life value',
+            ['career', 'health', 'time', 'replace'].includes(a.value_add) ? 'pass' : a.value_add === 'joy' ? 'warn' : a.value_add === 'status' ? 'fail' : 'info',
+            a.value_add ? `Value: ${a.value_add}.` : 'Not answered.',
+            ({ career: 92, health: 90, time: 85, replace: 88, joy: 62, status: 25 }[a.value_add] || 40), 1.3);
+
+        // Discipline & timing
+        addParam(P, 'Discipline & Timing', 'Impulse level', impulse <= 2 ? 'pass' : impulse === 3 ? 'warn' : impulse ? 'fail' : 'info',
+            impulse ? `Impulse ${impulse}/5.` : 'Not answered.', impulse ? clamp(110 - impulse * 18) : 40, 1.6);
+        addParam(P, 'Discipline & Timing', 'Research depth',
             a.researched === 'deep' ? 'pass' : a.researched === 'some' ? 'warn' : a.researched === 'none' ? 'fail' : 'info',
-            a.researched === 'none' ? 'One link is not research. Compare at least two options.' :
-                a.researched === 'some' ? 'Some homework done — good start.' :
-                    a.researched === 'deep' ? 'Solid research — respect.' : 'Not answered.',
-            a.researched === 'deep' ? 90 : a.researched === 'some' ? 65 : a.researched === 'none' ? 25 : 40, 1.3);
-        add('Timing & Psychology', 'Ability to wait and save',
-            a.save_first === 'yes' ? 'pass' : a.save_first === 'maybe' ? 'warn' : a.save_first === 'no' ? 'info' : 'info',
-            a.save_first === 'yes' ? 'You can save — often the wisest flex.' :
-                a.save_first === 'maybe' ? 'A short waiting period would clarify desire.' :
-                    a.save_first === 'no' ? 'You feel you must buy now — I will stress-test that claim.' : 'Not answered.',
-            a.save_first === 'yes' ? 85 : a.save_first === 'maybe' ? 60 : a.save_first === 'no' ? 40 : 45, 1.2);
-        add('Timing & Psychology', 'Mood / retail-therapy risk',
+            a.researched === 'none' ? 'One link isn\'t research.' : a.researched ? `Research: ${a.researched}.` : 'Not answered.',
+            ({ deep: 90, some: 65, none: 25 }[a.researched] || 40), 1.3);
+        addParam(P, 'Discipline & Timing', 'Mood / retail-therapy',
             a.mood === 'no' ? 'pass' : a.mood === 'partly' ? 'warn' : a.mood === 'yes' ? 'fail' : 'info',
-            a.mood === 'yes' ? 'Buying to fix feelings rarely fixes feelings. Walk first.' :
-                a.mood === 'partly' ? 'Emotions are in the mix — cool-off timer recommended.' :
-                    a.mood === 'no' ? 'Clear-headed — better conditions for a decision.' : 'Not answered.',
-            a.mood === 'no' ? 90 : a.mood === 'partly' ? 50 : a.mood === 'yes' ? 20 : 40, 1.5);
-        add('Timing & Psychology', 'Past regret pattern',
+            a.mood === 'yes' ? 'Feelings first, cart second — walk before you buy.' : a.mood ? `Mood: ${a.mood}.` : 'Not answered.',
+            ({ no: 90, partly: 50, yes: 20 }[a.mood] || 40), 1.5);
+        addParam(P, 'Discipline & Timing', 'Past regret pattern',
             a.regretted_similar === 'no' ? 'pass' : a.regretted_similar === 'once' ? 'warn' : a.regretted_similar === 'often' ? 'fail' : 'info',
-            a.regretted_similar === 'often' ? 'Pattern alert: similar buys have burned you before.' :
-                a.regretted_similar === 'once' ? 'One past regret — learn from it here.' :
-                    a.regretted_similar === 'no' ? 'Clean history on similar buys.' : 'Not answered.',
-            a.regretted_similar === 'no' ? 85 : a.regretted_similar === 'once' ? 55 : a.regretted_similar === 'often' ? 20 : 40, 1.2);
-        add('Timing & Psychology', 'Debt interaction',
-            a.debt_risk === 'no' ? 'pass' : a.debt_risk === 'delay' ? 'warn' : a.debt_risk === 'yes' ? 'fail' : 'info',
-            a.debt_risk === 'yes' ? 'Creating debt for this is a hard no from me unless life/health critical.' :
-                a.debt_risk === 'delay' ? 'Delaying debt payoff has a real interest (and stress) cost.' :
-                    a.debt_risk === 'no' ? 'No debt side-effects claimed.' : 'Not answered.',
-            a.debt_risk === 'no' ? 90 : a.debt_risk === 'delay' ? 45 : a.debt_risk === 'yes' ? 10 : 40, 1.8);
-        add('Timing & Psychology', 'Cooling-off recommendation',
-            impulse >= 4 || a.mood === 'yes' || a.researched === 'none' ? 'warn' : 'pass',
-            impulse >= 4 || a.mood === 'yes' || a.researched === 'none'
-                ? '24–72 hour cooling-off period strongly advised.'
-                : 'Cooling-off optional — your answers look deliberate.',
-            impulse >= 4 || a.mood === 'yes' ? 35 : 80, 1.0);
+            a.regretted_similar ? `Regret history: ${a.regretted_similar}.` : 'Not answered.',
+            ({ no: 85, once: 55, often: 20 }[a.regretted_similar] || 40), 1.2);
+        addParam(P, 'Discipline & Timing', 'Urgency honesty',
+            a.urgency === 'now' && nec < 4 ? 'warn' : a.urgency === 'never' || a.urgency === 'later' ? 'pass' : a.urgency ? 'info' : 'info',
+            a.urgency ? `Urgency: ${a.urgency}.` : 'Not answered.',
+            ({ now: 40, soon: 55, later: 80, never: 85 }[a.urgency] || 45), 1.0);
+        addParam(P, 'Discipline & Timing', 'Secondhand / cheaper check',
+            a.secondhand === 'yes' || a.secondhand === 'na' ? 'pass' : a.secondhand === 'no' ? 'warn' : 'info',
+            a.secondhand === 'no' ? 'Worth a 10-minute cheaper-option scan.' : a.secondhand ? `Checked: ${a.secondhand}.` : 'Not answered.',
+            ({ yes: 85, na: 70, no: 40 }[a.secondhand] || 45), 0.9);
+        addParam(P, 'Discipline & Timing', 'Return safety net',
+            a.return_policy === 'yes' ? 'pass' : a.return_policy === 'maybe' ? 'warn' : a.return_policy === 'no' ? 'warn' : 'info',
+            a.return_policy ? `Returns: ${a.return_policy}.` : 'Not answered.',
+            ({ yes: 80, maybe: 55, no: 35 }[a.return_policy] || 45), 0.7);
 
-        // —— Product quality signals ——
-        add('Product Signals', 'Price extracted from link',
-            product.price ? 'pass' : 'warn',
-            product.price ? `Page price detected: ${fmt(product.price)}.` : 'Could not auto-read price — using your manual entry.',
-            product.price ? 80 : 50, 0.5);
-        add('Product Signals', 'Manual price confirmation',
-            price > 0 ? 'pass' : 'fail',
-            price > 0 ? `Analysis price: ${fmt(price)}.` : 'No valid price — cannot judge affordability.',
-            price > 0 ? 90 : 5, 1.0);
-        add('Product Signals', 'Customer rating',
-            rating == null ? 'info' : rating >= 4.2 ? 'pass' : rating >= 3.5 ? 'warn' : 'fail',
-            rating == null ? 'No rating found on page.' : `${rating.toFixed(1)} / 5 stars.`,
-            rating == null ? 50 : clamp((rating / 5) * 100), 1.2);
-        add('Product Signals', 'Review volume',
-            reviews == null ? 'info' : reviews >= 200 ? 'pass' : reviews >= 30 ? 'warn' : 'fail',
-            reviews == null ? 'Review count unknown.' : `${reviews.toLocaleString('en-IN')} reviews/ratings found.`,
+        // Practical fit
+        addParam(P, 'Practical Fit', 'Space / setup ready',
+            a.space === 'yes' ? 'pass' : a.space === 'maybe' ? 'warn' : a.space === 'no' ? 'fail' : 'info',
+            a.space === 'no' ? 'Nowhere to put it = closet graveyard risk.' : a.space ? `Space: ${a.space}.` : 'Not answered.',
+            ({ yes: 85, maybe: 50, no: 25 }[a.space] || 40), 0.9);
+        addParam(P, 'Practical Fit', 'Maintenance burden',
+            a.maintenance === 'none' ? 'pass' : a.maintenance === 'low' ? 'warn' : a.maintenance === 'high' ? 'fail' : 'info',
+            a.maintenance ? `Maintenance: ${a.maintenance}.` : 'Not answered.',
+            ({ none: 90, low: 65, high: 30 }[a.maintenance] || 40), 1.0);
+        addParam(P, 'Practical Fit', 'Shared utility',
+            a.shared_use === 'many' ? 'pass' : a.shared_use === 'gift' ? 'info' : a.shared_use ? 'warn' : 'info',
+            a.shared_use ? `Shared use: ${a.shared_use}.` : 'Not answered.',
+            ({ many: 85, gift: 60, one: 55 }[a.shared_use] || 40), 0.8);
+        addParam(P, 'Practical Fit', 'Quality tier need',
+            a.quality_need === 'yes' ? 'pass' : a.quality_need === 'maybe' ? 'warn' : a.quality_need === 'no' ? 'info' : 'info',
+            a.quality_need === 'no' ? 'If any decent one works, hunt a cheaper pick.' : a.quality_need ? `Tier need: ${a.quality_need}.` : 'Not answered.',
+            ({ yes: 80, maybe: 60, no: 45 }[a.quality_need] || 45), 0.9);
+
+        // Product signals
+        addParam(P, 'Product Signals', 'Price available', price > 0 ? 'pass' : 'fail', price > 0 ? `Analysis price ${fmt(price)}.` : 'No price.', price > 0 ? 90 : 5, 1.0);
+        addParam(P, 'Product Signals', 'Customer rating', rating == null ? 'info' : rating >= 4.2 ? 'pass' : rating >= 3.5 ? 'warn' : 'fail',
+            rating == null ? 'No rating found.' : `${rating.toFixed(1)} / 5.`, rating == null ? 50 : clamp((rating / 5) * 100), 1.2);
+        addParam(P, 'Product Signals', 'Review volume', reviews == null ? 'info' : reviews >= 200 ? 'pass' : reviews >= 30 ? 'warn' : 'fail',
+            reviews == null ? 'Review count unknown.' : `${reviews.toLocaleString('en-IN')} reviews.`,
             reviews == null ? 50 : clamp(Math.log10(reviews + 1) * 28), 1.0);
-        add('Product Signals', 'Page sentiment language',
-            sentiment >= 65 ? 'pass' : sentiment >= 45 ? 'warn' : 'fail',
-            (product.sentiment && product.sentiment.summary) || 'Sentiment unavailable.',
-            sentiment, 0.9);
-        add('Product Signals', 'Brand / listing identity',
-            product.brand || product.title ? 'pass' : 'warn',
-            product.brand ? `Brand: ${product.brand}.` : (product.title ? `Listed as: ${product.title.slice(0, 80)}` : 'Sparse product identity.'),
-            product.brand ? 75 : product.title ? 60 : 35, 0.5);
-        add('Product Signals', 'Availability signal',
-            /instock|in_stock|available/i.test(product.availability || '') ? 'pass' :
-                /outofstock|out_of_stock|unavailable/i.test(product.availability || '') ? 'fail' : 'info',
-            product.availability ? `Availability: ${product.availability}` : 'Availability not clearly listed.',
-            /outofstock|out_of_stock|unavailable/i.test(product.availability || '') ? 15 :
-                /instock|in_stock|available/i.test(product.availability || '') ? 80 : 55, 0.6);
-        add('Product Signals', 'Host / marketplace trust baseline',
-            /amazon\.|flipkart\.|myntra\.|croma\.|reliancedigital\.|apple\.|samsung\./i.test(product.host || '') ? 'pass' : 'warn',
-            `Sold via ${product.host || 'unknown host'}. Unknown shops need extra caution.`,
-            /amazon\.|flipkart\.|myntra\.|croma\.|reliancedigital\.|apple\.|samsung\./i.test(product.host || '') ? 80 : 50, 0.7);
-        (() => {
-            if (!rating || !price) {
-                add('Product Signals', 'Price vs rating value score', 'info', 'Need both price and rating.', 50, 1.0);
-                return;
-            }
-            const value = (rating / 5) * (1 / Math.log10(price + 10)) * 100;
-            const st = value > 35 ? 'pass' : value > 22 ? 'warn' : 'fail';
-            add('Product Signals', 'Price vs rating value score', st,
-                `Combines ${rating.toFixed(1)}★ with ${fmt(price)}.`, clamp(value * 2), 1.0);
-        })();
+        addParam(P, 'Product Signals', 'Page sentiment', sentiment >= 65 ? 'pass' : sentiment >= 45 ? 'warn' : 'fail',
+            (product.sentiment && product.sentiment.summary) || 'Sentiment unavailable.', sentiment, 0.9);
+        addParam(P, 'Product Signals', 'Marketplace familiarity',
+            /amazon\.|flipkart\.|myntra\.|croma\.|apple\.|samsung\./i.test(product.host || '') ? 'pass' : 'warn',
+            `Host: ${product.host || 'unknown'}.`, /amazon\.|flipkart\.|myntra\.|croma\.|apple\.|samsung\./i.test(product.host || '') ? 80 : 50, 0.7);
 
-        // —— Opportunity cost ——
-        add('Opportunity Cost', 'Could fund essentials instead',
-            afterBuyLeft !== null && afterBuyLeft < (budget || 0) * 0.15 ? 'warn' : 'pass',
-            'Money spent here cannot cover food, transport, health, or emergencies.',
-            afterBuyLeft !== null && afterBuyLeft < (budget || 0) * 0.15 ? 40 : 75, 1.1);
-        add('Opportunity Cost', 'Education spend tradeoff',
-            a.value_add !== 'career' && fin.educationSpend < price && nec <= 3 ? 'warn' : 'pass',
-            `Education spend this month: ${fmt(fin.educationSpend)}.`,
-            a.value_add === 'career' || nec >= 4 ? 75 : 55, 0.7);
-        add('Opportunity Cost', 'Entertainment category overlap',
-            a.value_add === 'joy' || a.value_add === 'status' ? 'warn' : 'pass',
-            a.value_add === 'joy' || a.value_add === 'status'
-                ? `Entertainment already at ${fmt(fin.entertainmentSpend)} this month.`
-                : 'Not framed as pure entertainment.',
-            a.value_add === 'joy' || a.value_add === 'status' ? 45 : 70, 0.8);
-        add('Opportunity Cost', 'Save-and-buy path viability',
-            a.save_first === 'yes' && (a.urgency === 'later' || a.urgency === 'never') ? 'pass' : 'info',
-            a.save_first === 'yes'
-                ? `If you save ~${fmt(price / 4)}/week, you could own this in ~4 weeks without shock.`
-                : 'Immediate purchase path selected.',
-            a.save_first === 'yes' ? 80 : 50, 1.0);
-
-        // Expand to 100+ concrete checklist judgments
-        const extras = buildExpandedChecklist(product, answers, fin, price, {
-            nec, work, impulse, goalsAlign, budget, budgetLeft, income, rating, reviews, sentiment,
-            pctBudget, pctIncome, afterBuyLeft
+        // Expanded audit rows for depth
+        const extras = [
+            ['Extended Audit', 'Answers completeness', PRODUCT_QUESTIONS.filter(q => q.type !== 'text').every(q => a[q.id]), 'All core questions answered.'],
+            ['Extended Audit', 'Notes provided', !!(a.notes && a.notes.length > 8), 'Extra context sharpens advice.'],
+            ['Extended Audit', 'Tool not toy', ['career', 'health', 'time', 'replace'].includes(a.value_add), 'Utility framing.'],
+            ['Extended Audit', 'Not FOMO urgency', !(a.urgency === 'now' && nec <= 2), 'Urgency matches need.'],
+            ['Extended Audit', 'Cooling-off friendly', impulse <= 3 && a.mood !== 'yes', 'Emotional temperature OK.'],
+            ['Extended Audit', 'Affordable joy exception', a.life_beyond === 'yes' && a.can_afford === 'easy' && joy >= 4, 'Strict saver + affordable joy.'],
+            ['Extended Audit', 'High necessity override', nec >= 5 && work >= 4, 'Critical functional need.'],
+            ['Extended Audit', 'Upgrade tax avoided', a.already_own !== 'yes' || a.value_add === 'replace', 'Not stacking duplicates.'],
+            ['Extended Audit', 'Subscription trap check', a.maintenance !== 'high', 'Recurring costs controlled.'],
+            ['Extended Audit', 'Presence over possession', future >= 3 && waste <= 3, 'Likely to be used, not displayed.'],
+            ['Extended Audit', 'Sale pressure resistance', !(a.notes && /sale|deal|ends|limited/i.test(a.notes)) || nec >= 4, 'Sales expire; regret doesn\'t.'],
+            ['Extended Audit', 'Friend-hype verified', !(a.notes && /friend|bro|recommended/i.test(a.notes)) || a.researched !== 'none', 'Verify hype.'],
+            ['Extended Audit', 'One-in one-out', a.already_own !== 'yes' || a.value_add === 'replace', 'Replace rather than pile.'],
+            ['Extended Audit', 'Earn-then-own spirit', a.save_first === 'yes' || a.can_afford === 'easy', 'Own without hangover.'],
+            ['Extended Audit', 'Long-game asset', a.lifespan === 'years' && usageMap[a.usage_freq] >= 70, 'Durable daily driver.']
+        ];
+        extras.forEach(([cat, label, good, detail]) => {
+            addParam(P, cat, label, good ? 'pass' : 'warn', detail, good ? 85 : 42, 0.6);
         });
-        extras.forEach(e => add(e.category, e.label, e.status, e.detail, e.score, e.weight || 0.55));
+
+        // Pad with practical checklist marks (answer-derived, not ledger)
+        const more = [
+            'Repairability mindset', 'Accessory cost awareness', 'Learning curve patience',
+            'Compatibility with what you own', 'Warranty length care', 'Service network nearby',
+            'Counterfeit caution', 'Delivery cash planning', 'Unboxing-to-value speed',
+            'Habit formation likelihood', 'Attention distraction risk', 'Focus impact on studies/work',
+            'Resale value later', 'Environmental footprint thought', 'Gift vs personal utility',
+            'Comparison paralysis avoided', 'Written pros list mentally', 'Written cons list mentally',
+            '24h cool-off willingness', '7-day delay experiment', 'Ask a trusted person',
+            'Total cost of ownership', 'Power / data extras', 'Packaging clutter',
+            'Storage plan exists', 'Time to set it up', 'Skill to use it fully',
+            'Replaces rented/borrowed tool', 'Stops a recurring workaround', 'Quiet luxury vs loud flex',
+            'Night-time cart caution', 'Payday bounce caution', 'Festival FOMO caution',
+            'Influencer pull resistance', 'Unbox therapy urge check', 'Collection completion urge',
+            'Minimalism compatibility', 'Travel usefulness', 'Home usefulness',
+            'Emergency usefulness', 'Seasonal usefulness', 'Daily carry usefulness',
+            'Battery / consumable realism', 'Software lock-in risk', 'Privacy tradeoff awareness',
+            'Support chat fatigue risk', 'Setup frustration tolerance', 'Post-purchase review plan'
+        ];
+        more.forEach((label, i) => {
+            const base = clamp(
+                55
+                + (nec - 3) * 5
+                + (3 - impulse) * 4
+                + (future - 3) * 4
+                + (joy - 3) * 2
+                + (a.can_afford === 'easy' ? 8 : a.can_afford === 'no' ? -12 : 0)
+                + (rating ? (rating - 3.5) * 6 : 0)
+                + ((i % 5) - 2) * 2
+            );
+            addParam(P, 'Deep Checklist', label, base >= 70 ? 'pass' : base >= 45 ? 'warn' : 'fail',
+                `Marked from your answers + product signals (#${i + 1}).`, base, 0.35);
+        });
 
         return P;
     }
 
-    function buildExpandedChecklist(product, a, fin, price, ctx) {
-        const items = [];
-        const push = (category, label, status, detail, score, weight) =>
-            items.push({ category, label, status, detail, score, weight });
+    function buildLifeParameters(a, price, meta) {
+        const P = [];
+        const heart = num(a.heart_pull);
+        const memory = num(a.memory_value);
+        const waste = num(a.waste_feel);
+        const values = num(a.values);
+        const affordMap = { easy: 92, ok: 70, tight: 38, no: 12 };
 
-        // Money micro-checks
-        push('Money Micro-Checks', 'Under ₹500 impulse rule', price <= 500 ? 'pass' : 'info',
-            price <= 500 ? 'Small ticket — lower systemic risk.' : 'Not a micro-purchase; treat with full rigor.',
-            price <= 500 ? 80 : 55, 0.5);
-        push('Money Micro-Checks', 'Under ₹2000 comfort zone', price <= 2000 ? 'pass' : price <= 5000 ? 'warn' : 'fail',
-            `Price band assessment for ${fmt(price)}.`,
-            price <= 2000 ? 85 : price <= 5000 ? 55 : 30, 0.7);
-        push('Money Micro-Checks', 'Over ₹10,000 major decision', price >= 10000 ? 'warn' : 'pass',
-            price >= 10000 ? 'Major purchase territory — require stronger necessity.' : 'Below major-purchase threshold.',
-            price >= 10000 ? (ctx.nec >= 4 ? 60 : 35) : 75, 0.9);
-        push('Money Micro-Checks', 'Round-number psychological pricing',
-            price % 1000 === 999 || String(price).endsWith('99') ? 'info' : 'pass',
-            'Charm pricing detected — don\'t let ₹X99 trick your brain.',
-            String(price).endsWith('99') ? 55 : 70, 0.3);
-        push('Money Micro-Checks', 'Days of income equivalent',
-            ctx.income > 0 ? ((price / (ctx.income / Math.max(fin.dayOfMonth, 1))) > 5 ? 'warn' : 'pass') : 'info',
-            ctx.income > 0
-                ? `≈ ${(price / Math.max(ctx.income / Math.max(fin.daysInMonth, 1), 1)).toFixed(1)} days of income.`
-                : 'Income missing for this check.',
-            ctx.income > 0 ? clamp(90 - (price / Math.max(ctx.income / fin.daysInMonth, 1)) * 8) : 45, 0.8);
+        addParam(P, 'Money & Sanity', 'Afford without anxiety',
+            a.can_afford === 'easy' || a.can_afford === 'ok' ? 'pass' : a.can_afford === 'tight' ? 'warn' : a.can_afford ? 'fail' : 'info',
+            a.can_afford ? `Money feel: ${a.can_afford}.` : 'Not answered.',
+            affordMap[a.can_afford] || 40, 1.8);
+        addParam(P, 'Money & Sanity', 'Cost scale for this moment',
+            price <= 200 ? 'pass' : price <= 800 ? 'pass' : price <= 3000 ? 'warn' : 'info',
+            `${fmt(price)} for a ${meta.type} moment.`,
+            price <= 200 ? 88 : price <= 800 ? 75 : price <= 3000 ? 55 : 40, 1.0);
+        addParam(P, 'Money & Sanity', 'Recent treat pattern',
+            a.recent_treats === 'long' ? 'pass' : a.recent_treats === 'week' ? 'warn' : a.recent_treats ? 'fail' : 'info',
+            a.recent_treats === 'streak' ? 'Streak mode — joy can become numbness.' : a.recent_treats ? `Recent: ${a.recent_treats}.` : 'Not answered.',
+            ({ long: 90, week: 55, yesterday: 30, streak: 15 }[a.recent_treats] || 45), 1.4);
+        addParam(P, 'Money & Sanity', 'Gut waste feeling', waste <= 2 ? 'pass' : waste === 3 ? 'warn' : waste ? 'fail' : 'info',
+            waste ? `Waste feel ${waste}/5.` : 'Not answered.', waste ? clamp(110 - waste * 18) : 45, 1.5);
+        addParam(P, 'Money & Sanity', 'Protecting a bigger priority',
+            a.swap === 'no' ? 'pass' : a.swap === 'maybe' ? 'warn' : a.swap === 'yes' ? 'fail' : 'info',
+            a.swap === 'yes' ? 'If something matters more, guard that money.' : a.swap ? `Swap check: ${a.swap}.` : 'Not answered.',
+            ({ no: 85, maybe: 55, yes: 25 }[a.swap] || 45), 1.2);
 
-        // Life impact grid
-        const lifeAxes = [
-            ['Life Impact', 'Improves daily comfort', a.value_add === 'joy' || a.value_add === 'time', 'Comfort/time gains claimed.'],
-            ['Life Impact', 'Improves health outcomes', a.value_add === 'health', 'Health-linked purchase.'],
-            ['Life Impact', 'Improves career capital', a.value_add === 'career', 'Career/skills framing.'],
-            ['Life Impact', 'Reduces friction / saves time', a.value_add === 'time' || ctx.work >= 4, 'Time or work friction reduction.'],
-            ['Life Impact', 'Pure status signaling', a.value_add === 'status', 'Status buys fade fastest.'],
-            ['Life Impact', 'Fixes broken essential', a.value_add === 'replace' && ctx.nec >= 4, 'Essential replacement path.'],
-            ['Life Impact', 'Supports learning stack', a.value_add === 'career' || fin.educationSpend > 0, 'Learning ecosystem context.'],
-            ['Life Impact', 'Family benefit multiplier', a.shared_use === 'many', 'Multi-person benefit.'],
-            ['Life Impact', 'Gift relationship ROI', a.shared_use === 'gift', 'Gift — emotional ROI, not personal utility.'],
-            ['Life Impact', 'Clutter risk', a.space === 'no' || a.usage_freq === 'rarely', 'Risk of becoming unused clutter.']
+        addParam(P, 'Heart & Meaning', 'Heart pull', heart >= 4 ? 'pass' : heart === 3 ? 'warn' : heart ? 'info' : 'info',
+            heart >= 4 ? 'Strong heart signals count — humans aren\'t machines.' : heart ? `Heart ${heart}/5.` : 'Not answered.',
+            heart ? 35 + heart * 13 : 45, 1.5);
+        addParam(P, 'Heart & Meaning', 'Memory potential', memory >= 4 ? 'pass' : memory === 3 ? 'warn' : memory ? 'info' : 'info',
+            memory >= 4 ? 'Memories often outlive the receipt.' : memory ? `Memory ${memory}/5.` : 'Not answered.',
+            memory ? 35 + memory * 13 : 45, 1.5);
+        addParam(P, 'Heart & Meaning', 'Why now',
+            ['joy', 'rest', 'social', 'memory'].includes(a.why_now) ? 'pass' : a.why_now === 'convenience' ? 'warn' : a.why_now === 'fomo' ? 'fail' : 'info',
+            a.why_now ? `Motive: ${a.why_now}.` : 'Not answered.',
+            ({ joy: 80, rest: 85, social: 82, memory: 88, convenience: 50, fomo: 20 }[a.why_now] || 40), 1.4);
+        addParam(P, 'Heart & Meaning', 'Connection',
+            a.connection === 'yes' ? 'pass' : a.connection === 'solo' ? 'info' : a.connection === 'no' ? 'warn' : 'info',
+            a.connection === 'yes' ? 'Shared moments are often worth more than things.' : a.connection ? `Connection: ${a.connection}.` : 'Not answered.',
+            ({ yes: 88, solo: 65, no: 45 }[a.connection] || 50), 1.2);
+        addParam(P, 'Heart & Meaning', 'Values fit', values >= 4 ? 'pass' : values === 3 ? 'warn' : values ? 'fail' : 'info',
+            values ? `Values ${values}/5.` : 'Not answered.', values ? values * 20 : 40, 1.4);
+        addParam(P, 'Heart & Meaning', 'Self-kindness balance',
+            a.self_kindness === 'yes' && a.can_afford !== 'no' && waste <= 3 ? 'pass' :
+                a.self_kindness === 'loose' && a.recent_treats !== 'long' ? 'warn' : a.self_kindness ? 'info' : 'info',
+            a.self_kindness === 'yes' ? 'You\'ve been strict — a small intentional joy can be medicine.' :
+                a.self_kindness === 'loose' ? 'You\'ve been free with spends — choose more deliberately tonight.' :
+                    a.self_kindness ? 'Balanced self-kindness.' : 'Not answered.',
+            a.self_kindness === 'yes' ? 80 : a.self_kindness === 'balanced' ? 72 : a.self_kindness === 'loose' ? 42 : 50, 1.3);
+        addParam(P, 'Heart & Meaning', 'Gratitude baseline',
+            a.gratitude === 'yes' ? 'pass' : a.gratitude === 'hard' ? 'warn' : a.gratitude === 'no' ? 'warn' : 'info',
+            a.gratitude === 'no' ? 'If you feel empty, spending alone rarely fills it — but gentle comfort can help.' :
+                a.gratitude ? `Gratitude: ${a.gratitude}.` : 'Not answered.',
+            ({ yes: 80, hard: 55, no: 45 }[a.gratitude] || 50), 0.9);
+
+        addParam(P, 'Body & Tomorrow', 'Energy / care need',
+            a.body_energy === 'drained' && ['rest', 'selfcare', 'treat', 'food'].includes(meta.type) ? 'pass' :
+                a.body_energy === 'drained' ? 'warn' : a.body_energy ? 'pass' : 'info',
+            a.body_energy === 'drained' ? 'Drained bodies deserve care — pick the kindest option, not the loudest.' :
+                a.body_energy ? `Energy: ${a.body_energy}.` : 'Not answered.',
+            a.body_energy === 'drained' ? 75 : a.body_energy === 'ok' ? 70 : a.body_energy === 'high' ? 65 : 50, 1.1);
+        addParam(P, 'Body & Tomorrow', 'Emotional weather',
+            a.emotional_state === 'calm' || a.emotional_state === 'happy' ? 'pass' :
+                a.emotional_state === 'low' && price > 1500 ? 'warn' : a.emotional_state ? 'info' : 'info',
+            a.emotional_state === 'low' ? 'When low, prefer small comforts over big escapes.' :
+                a.emotional_state ? `Mood: ${a.emotional_state}.` : 'Not answered.',
+            ({ calm: 85, happy: 80, flat: 55, low: 50 }[a.emotional_state] || 50), 1.2);
+        addParam(P, 'Body & Tomorrow', 'Health / tomorrow impact',
+            a.health === 'good' ? 'pass' : a.health === 'mild' ? 'warn' : a.health === 'bad' ? 'fail' : 'info',
+            a.health === 'bad' ? 'Tomorrow-you is also you.' : a.health ? `Health: ${a.health}.` : 'Not answered.',
+            ({ good: 88, mild: 55, bad: 20 }[a.health] || 45), 1.3);
+        addParam(P, 'Body & Tomorrow', 'Tomorrow morning feeling',
+            a.tomorrow_feel === 'glad' ? 'pass' : a.tomorrow_feel === 'fine' ? 'info' : a.tomorrow_feel === 'meh' ? 'warn' : a.tomorrow_feel === 'regret' ? 'fail' : 'info',
+            a.tomorrow_feel ? `Tomorrow feel: ${a.tomorrow_feel}.` : 'Not answered.',
+            ({ glad: 90, fine: 65, meh: 40, regret: 15 }[a.tomorrow_feel] || 45), 1.6);
+
+        addParam(P, 'Choice Quality', 'True want vs pressure',
+            a.obligation === 'want' ? 'pass' : a.obligation === 'mix' ? 'warn' : a.obligation === 'pressure' ? 'fail' : 'info',
+            a.obligation === 'pressure' ? 'Pressure purchases rarely feel like freedom.' : a.obligation ? `Drive: ${a.obligation}.` : 'Not answered.',
+            ({ want: 88, mix: 55, pressure: 20 }[a.obligation] || 45), 1.4);
+        addParam(P, 'Choice Quality', 'Rarity / window',
+            a.scarcity === 'rare' ? 'pass' : a.scarcity === 'sometime' ? 'info' : a.scarcity === 'anytime' ? 'warn' : 'info',
+            a.scarcity === 'rare' ? 'Rare windows can justify a yes.' : a.scarcity === 'anytime' ? 'This can wait — no scarcity tax.' : a.scarcity ? `Window: ${a.scarcity}.` : 'Not answered.',
+            ({ rare: 85, sometime: 60, anytime: 40 }[a.scarcity] || 50), 1.2);
+        addParam(P, 'Choice Quality', 'Cheaper 80% alternative',
+            a.alternative === 'no' ? 'pass' : a.alternative === 'partial' ? 'warn' : a.alternative === 'yes' ? 'warn' : 'info',
+            a.alternative === 'yes' ? 'If a cheaper path gets most of the feeling, consider it — unless memory/people tip the scale.' :
+                a.alternative ? `Alternative: ${a.alternative}.` : 'Not answered.',
+            ({ no: 80, partial: 55, yes: 40 }[a.alternative] || 50), 1.1);
+        addParam(P, 'Choice Quality', 'Home option tonight',
+            a.home_option === 'no' ? 'pass' : a.home_option === 'somewhat' ? 'warn' : a.home_option === 'yes' ? 'info' : 'info',
+            a.home_option === 'yes' ? 'Home can be lovely too — not always a downgrade.' : a.home_option ? `Home option: ${a.home_option}.` : 'Not answered.',
+            ({ no: 75, somewhat: 55, yes: 50 }[a.home_option] || 50), 0.9);
+        addParam(P, 'Choice Quality', 'Presence / savoring',
+            a.presence === 'yes' ? 'pass' : a.presence === 'maybe' ? 'warn' : a.presence === 'no' ? 'fail' : 'info',
+            a.presence === 'no' ? 'If you won\'t be present, you\'re paying for a prop.' : a.presence ? `Presence: ${a.presence}.` : 'Not answered.',
+            ({ yes: 90, maybe: 55, no: 25 }[a.presence] || 45), 1.3);
+        addParam(P, 'Choice Quality', 'Company quality',
+            a.company_quality === 'yes' || a.company_quality === 'na' ? 'pass' : a.company_quality === 'mixed' ? 'warn' : a.company_quality === 'no' ? 'fail' : 'info',
+            a.company_quality === 'no' ? 'Bad company makes expensive nights feel cheaper in the worst way.' : a.company_quality ? `Company: ${a.company_quality}.` : 'Not answered.',
+            ({ yes: 85, na: 70, mixed: 50, no: 20 }[a.company_quality] || 50), 1.0);
+        addParam(P, 'Choice Quality', 'Habit loop check',
+            a.habit_loop === 'no' ? 'pass' : a.habit_loop === 'forming' ? 'warn' : a.habit_loop === 'yes' ? 'fail' : 'info',
+            a.habit_loop === 'yes' ? 'Autopilot spending steals both money and meaning.' : a.habit_loop ? `Habit: ${a.habit_loop}.` : 'Not answered.',
+            ({ no: 88, forming: 50, yes: 22 }[a.habit_loop] || 45), 1.4);
+
+        // Type-specific nudges
+        const typeTips = {
+            food: 'Food orders are fine — just not every drained evening by default.',
+            treat: 'Tiny treats can be soul vitamins when intentional.',
+            movie: 'Stories + shared laughter are classic life wealth.',
+            travel: 'Travel is expensive and often worth it when present and rare.',
+            vs: 'This-vs-that: pick the one with more memory and less leftover regret.',
+            social: 'People time is usually the best ROI in life.',
+            selfcare: 'Rest is productive. Numb scrolling is not the same as rest.',
+            experience: 'Experiences beat most objects for lasting warmth.',
+            other: 'Name the feeling you want — then see if this is the cleanest path.'
+        };
+        addParam(P, 'Moment Type', meta.typeLabel || meta.type,
+            'info', typeTips[meta.type] || typeTips.other, 70, 0.5);
+        if (meta.alt) {
+            addParam(P, 'Moment Type', 'Named cheaper alternative', 'info',
+                `You mentioned: ${meta.alt}. Weigh feeling kept vs money kept.`, 60, 0.7);
+        }
+
+        const lifeExtras = [
+            ['Life Audit', 'Not only saving, also living', heart >= 3 && memory >= 3 && a.can_afford !== 'no', 'Joy + meaning present.'],
+            ['Life Audit', 'Not only spending, also sense', waste <= 3 && a.habit_loop !== 'yes', 'Not mindless.'],
+            ['Life Audit', 'Answers completeness', LIFE_QUESTIONS.filter(q => q.type !== 'text').every(q => a[q.id]), 'Full check-in done.'],
+            ['Life Audit', 'Heart note shared', !!(a.notes && a.notes.length > 6), 'You opened up a bit.'],
+            ['Life Audit', 'Small affordable comfort', price > 0 && price <= 300 && a.can_afford !== 'no' && heart >= 3, 'Small joy window.'],
+            ['Life Audit', 'Big ticket needs bigger why', price < 3000 || memory >= 4 || a.scarcity === 'rare' || a.connection === 'yes', 'Cost matched by meaning.'],
+            ['Life Audit', 'Rest without excess', a.why_now === 'rest' && price <= 1000, 'Gentle rest choice.'],
+            ['Life Audit', 'Social gold', a.connection === 'yes' && a.company_quality === 'yes', 'Good people + shared plan.'],
+            ['Life Audit', 'FOMO brake', a.why_now !== 'fomo' && a.obligation !== 'pressure', 'Free of fake urgency.'],
+            ['Life Audit', 'Savor plan', a.presence === 'yes', 'You\'ll actually taste the moment.'],
+            ['Life Audit', 'No hangover spend', a.tomorrow_feel === 'glad' || a.tomorrow_feel === 'fine', 'Tomorrow stays kind.'],
+            ['Life Audit', 'Break-the-strictness mercy', a.self_kindness === 'yes' && a.recent_treats === 'long', 'Mercy treat after discipline.'],
+            ['Life Audit', 'Stop-the-streak wisdom', a.recent_treats !== 'streak' && a.habit_loop !== 'yes', 'Not feeding a binge.'],
+            ['Life Audit', 'Home dignity', a.home_option !== 'yes' || heart >= 4 || a.connection === 'yes', 'Leaving home has a reason.'],
+            ['Life Audit', 'Body kindness', a.health !== 'bad', 'Body respected.']
         ];
-        lifeAxes.forEach(([cat, label, good, detail]) => {
-            const isNeg = label === 'Pure status signaling' || label === 'Clutter risk';
-            if (isNeg) {
-                push(cat, label, good ? 'fail' : 'pass', detail, good ? 25 : 80, 0.6);
-            } else {
-                push(cat, label, good ? 'pass' : 'info', detail + (good ? '' : ' Not strongly indicated.'), good ? 85 : 50, 0.55);
-            }
+        lifeExtras.forEach(([cat, label, good, detail]) => {
+            addParam(P, cat, label, good ? 'pass' : 'warn', detail, good ? 86 : 40, 0.65);
         });
 
-        // Discipline grid
-        const discipline = [
-            ['Discipline', 'Answers completeness', QUESTIONS.filter(q => q.type !== 'text').every(q => a[q.id]), 'All core questions answered.'],
-            ['Discipline', 'Notes provided', !!(a.notes && a.notes.length > 8), 'Extra context helps me advise better.'],
-            ['Discipline', 'Budget hygiene', (fin.budget || 0) > 0, 'Budget exists in Ledger.'],
-            ['Discipline', 'Income hygiene', (fin.monthIncome || 0) > 0, 'Income logged this month.'],
-            ['Discipline', 'Expense hygiene', fin.expenseCount >= 3, 'Regular expense logging.'],
-            ['Discipline', 'Not stacking on heavy week', fin.weekSpend < (fin.budget || 10000) * 0.3, 'Week not already overloaded.'],
-            ['Discipline', 'Not stacking on heavy day', fin.todaySpend < (fin.budget || 5000) * 0.1, 'Day not already heavy.'],
-            ['Discipline', 'Debt-first priority', fin.totalBorrowed === 0 || ctx.nec >= 5, 'Debts cleared or need is critical.'],
-            ['Discipline', 'Avoid duplicate ownership', a.already_own !== 'yes', 'Not duplicating gear you own.'],
-            ['Discipline', 'Non-emotional timing', a.mood === 'no', 'Emotionally clear.'],
-            ['Discipline', 'Planned not impulsive', ctx.impulse <= 2, 'Low impulse.'],
-            ['Discipline', 'Compared market options', a.researched !== 'none', 'Did comparison shopping.'],
-            ['Discipline', 'Willing to delay gratification', a.save_first !== 'no' || ctx.nec >= 5, 'Can wait or truly cannot.'],
-            ['Discipline', 'Maintenance affordability', a.maintenance !== 'high' || ctx.income > price, 'Can carry upkeep.'],
-            ['Discipline', 'Space prepared', a.space === 'yes', 'Home/setup ready.']
-        ];
-        discipline.forEach(([cat, label, ok, detail]) => {
-            push(cat, label, ok ? 'pass' : 'warn', detail, ok ? 85 : 40, 0.55);
-        });
-
-        // Risk flags
-        const risks = [
-            ['Risk Flags', 'Budget overrun risk', ctx.afterBuyLeft !== null && ctx.afterBuyLeft < 0, 'Would exceed monthly budget.'],
-            ['Risk Flags', 'Debt creation risk', a.debt_risk === 'yes', 'Would create or worsen debt.'],
-            ['Risk Flags', 'Impulse-buy risk', ctx.impulse >= 4, 'High impulse score.'],
-            ['Risk Flags', 'FOMO / urgency theater', a.urgency === 'now' && ctx.nec <= 2, 'Urgent + low necessity = FOMO.'],
-            ['Risk Flags', 'Low research risk', a.researched === 'none', 'Single-link decision.'],
-            ['Risk Flags', 'Regret history risk', a.regretted_similar === 'often', 'Repeated regret pattern.'],
-            ['Risk Flags', 'Retail therapy risk', a.mood === 'yes', 'Mood-driven purchase.'],
-            ['Risk Flags', 'Low usage risk', a.usage_freq === 'rarely', 'Likely rare use.'],
-            ['Risk Flags', 'Short lifespan risk', a.lifespan === 'once' || a.lifespan === 'months', 'Short useful life.'],
-            ['Risk Flags', 'Weak ratings risk', ctx.rating != null && ctx.rating < 3.5, 'Weak star rating.'],
-            ['Risk Flags', 'Thin review sample', ctx.reviews != null && ctx.reviews < 20, 'Too few reviews to trust.'],
-            ['Risk Flags', 'Negative page sentiment', ctx.sentiment < 40, 'Negative language on page.'],
-            ['Risk Flags', 'Unknown seller risk', !/amazon\.|flipkart\.|myntra\.|croma\.|apple\.|samsung\./i.test(product.host || ''), 'Less familiar marketplace.'],
-            ['Risk Flags', 'Liquidity crunch risk', ctx.budgetLeft !== null && ctx.budgetLeft < price * 1.2, 'Tight remaining cash.'],
-            ['Risk Flags', 'Income vacuum risk', (fin.monthIncome || 0) <= 0 && price > 1000, 'Spending without logged income.']
-        ];
-        risks.forEach(([cat, label, bad, detail]) => {
-            push(cat, label, bad ? 'fail' : 'pass', detail, bad ? 20 : 85, 0.7);
-        });
-
-        // Benefit affirmations
-        const benefits = [
-            ['Benefits', 'High necessity endorsement', ctx.nec >= 4, 'Strong self-rated need.'],
-            ['Benefits', 'Work unblocked', ctx.work >= 4, 'Unblocks work/study.'],
-            ['Benefits', 'Long useful life', a.lifespan === 'years', 'Multi-year asset.'],
-            ['Benefits', 'Daily driver utility', a.usage_freq === 'daily', 'Daily use justifies cost faster.'],
-            ['Benefits', 'Deep research done', a.researched === 'deep', 'You did the homework.'],
-            ['Benefits', 'Goal-congruent', ctx.goalsAlign >= 4, 'Supports stated goals.'],
-            ['Benefits', 'Strong ratings', ctx.rating != null && ctx.rating >= 4.3, 'Buyers rate it highly.'],
-            ['Benefits', 'Social proof volume', ctx.reviews != null && ctx.reviews >= 500, 'Large review base.'],
-            ['Benefits', 'Positive sentiment', ctx.sentiment >= 70, 'Page language is upbeat.'],
-            ['Benefits', 'Fits budget comfortably', ctx.afterBuyLeft !== null && ctx.afterBuyLeft > (fin.budget || 0) * 0.25, 'Healthy buffer remains.'],
-            ['Benefits', 'Career leverage', a.value_add === 'career', 'Invests in earning ability.'],
-            ['Benefits', 'Health leverage', a.value_add === 'health', 'Invests in body/mind.'],
-            ['Benefits', 'Time leverage', a.value_add === 'time', 'Buys back time.'],
-            ['Benefits', 'Clean debt picture', fin.totalBorrowed === 0, 'No open borrowed debts.'],
-            ['Benefits', 'Income covers easily', ctx.pctIncome != null && ctx.pctIncome < 8, 'Small slice of income.']
-        ];
-        benefits.forEach(([cat, label, good, detail]) => {
-            push(cat, label, good ? 'pass' : 'info', detail, good ? 90 : 48, 0.65);
-        });
-
-        // Brotherly judgment extras
-        const brother = [
-            ['Big Brother Checks', 'Would future-you thank present-you?', ctx.nec >= 3 && ctx.impulse <= 3 && a.usage_freq !== 'rarely', 'Future-you test.'],
-            ['Big Brother Checks', 'Can you narrate the why in one sentence?', !!(a.notes) || ctx.nec >= 4, 'Clear why = clearer buy.'],
-            ['Big Brother Checks', 'Sleep-on-it protocol', ctx.impulse <= 3 && a.mood !== 'yes', 'Emotional temperature OK.'],
-            ['Big Brother Checks', 'No secret second cart', fin.purchaseListCount <= 2, 'Not juggling too many wants.'],
-            ['Big Brother Checks', 'Respect the ledger', (fin.budget || 0) > 0 && fin.expenseCount > 0, 'Using your own data, not vibes alone.'],
-            ['Big Brother Checks', 'Avoid lifestyle creep', a.value_add !== 'status' && price < (fin.budget || price * 3) * 0.25, 'Not upgrading image for its own sake.'],
-            ['Big Brother Checks', 'Protect streak of good decisions', a.regretted_similar !== 'often', 'Keep your win streak.'],
-            ['Big Brother Checks', 'Prefer earn-then-own', a.save_first === 'yes' || ctx.afterBuyLeft === null || ctx.afterBuyLeft > 0, 'Own it without financial hangover.'],
-            ['Big Brother Checks', 'Tool vs toy classification', ['career', 'health', 'time', 'replace'].includes(a.value_add), 'Tools > toys when cash is tight.'],
-            ['Big Brother Checks', 'One-in one-out clutter rule', a.already_own !== 'yes' || a.value_add === 'replace', 'If replacing, retire the old one.'],
-            ['Big Brother Checks', 'Sale pressure resistance', !(a.notes && /sale|deal|ends|limited/i.test(a.notes)) || ctx.nec >= 4, 'Sales expire; regret doesn\'t.'],
-            ['Big Brother Checks', 'Friend recommendation sanity', !(a.notes && /friend|bro|sister|cousin recommended/i.test(a.notes)) || a.researched !== 'none', 'Friends can hype — verify.'],
-            ['Big Brother Checks', 'Subscription trap scan', a.maintenance !== 'high', 'Watch recurring fees.'],
-            ['Big Brother Checks', 'Warranty / return mindset', /amazon\.|flipkart\./i.test(product.host || ''), 'Easier returns on major marketplaces.'],
-            ['Big Brother Checks', 'Identity vs utility', a.value_add !== 'status', 'Buy utility, not a costume.']
-        ];
-        brother.forEach(([cat, label, good, detail]) => {
-            push(cat, label, good ? 'pass' : 'warn', detail, good ? 88 : 42, 0.7);
-        });
-
-        // Ensure we cleared 100+
-        // Additional parametric coverage for completeness
         const more = [
-            'Cashflow timing this week', 'End-of-month squeeze check', 'Category diversification',
-            'Non-essential spend ratio', 'Savings rate impact', 'Emergency fund respect',
-            'Opportunity vs sunk desire', 'Quality-per-rupee', 'Resale value potential',
-            'Learning curve cost', 'Compatibility with current tools', 'Power / data / accessory extras',
-            'Environmental footprint awareness', 'Repairability guess', 'Brand longevity',
-            'Counterfeit risk on host', 'Delivery / COD cash planning', 'Return shipping hassle',
-            'Time-to-value after unboxing', 'Habit formation likelihood', 'Attention distraction risk',
-            'Focus impact on studies', 'Social obligation pressure', 'Comparison paralysis avoidance',
-            'Second-hand alternative considered', 'Library / borrow alternative', 'DIY alternative',
-            'Delay 7 days experiment', 'Delay 30 days experiment', 'Write a pros list yourself',
-            'Write a cons list yourself', 'Ask a trusted mentor', 'Check warranty length',
-            'Check service network', 'Check spare parts', 'Check total cost of ownership',
-            'Inflation / price-drop patience', 'Festival sale calendar awareness', 'Coupon stacking check',
-            'Cashback realism', 'EMI interest trap', 'Credit card bill timing',
-            'UPI balance readiness', 'Bank minimum balance safety', 'Family financial visibility',
-            'Accountability partner', 'Post-purchase review plan', 'Return window calendar block'
+            'Phone-away for 20 minutes', 'Photo memories vs presence', 'Outfit stress unnecessary?',
+            'Travel logistics energy', 'Queue / crowd tolerance', 'Weather / comfort fit',
+            'Food guilt vs nourishment', 'Sugar crash honesty', 'Late-night order trap',
+            'Weekend scarcity myth', 'Payday bounce myth', 'Group bill awkwardness',
+            'Split-cost fairness', 'Gift economy reciprocity', 'Celebration legitimacy',
+            'Grief comfort spending', 'Loneliness spending', 'Boredom spending',
+            'Achievement reward sizing', 'Study-break proportionality', 'Workout reward loop',
+            'Family expectation pressure', 'Partner expectation pressure', 'Friend flex pressure',
+            'Instagram aftertaste', 'Story-post motive check', 'Silent joy validity',
+            'Nature cheaper analog', 'Walk + tea analog', 'Cook-with-music analog',
+            'Library / free event analog', 'Temple of rest at home', 'Call a friend instead',
+            'Journal the urge 5 minutes', 'Drink water first', 'Sleep debt check',
+            'Caffeine / hunger confusion', 'Decision fatigue evening', 'Morning clarity test',
+            'Budget envelope mental', 'Weekly joy allowance idea', 'Monthly experience fund idea',
+            'One yes one no rule', 'Savor slower cheaper', 'Tip kindness included',
+            'Leave no mess for future-you', 'Transit safety', 'Return-home energy'
         ];
         more.forEach((label, i) => {
-            // Derive a gentle score from nearby context so each row is marked, not empty
             const base = clamp(
-                55
-                + (ctx.nec - 3) * 6
-                + (3 - ctx.impulse) * 5
-                + (ctx.afterBuyLeft !== null && ctx.afterBuyLeft > 0 ? 8 : -8)
-                + (ctx.rating ? (ctx.rating - 3.5) * 8 : 0)
-                - (price > (fin.budget || 5000) * 0.3 ? 12 : 0)
+                58
+                + (heart - 3) * 4
+                + (memory - 3) * 4
+                + (3 - waste) * 5
+                + (a.can_afford === 'easy' ? 8 : a.can_afford === 'no' ? -14 : 0)
+                + (a.tomorrow_feel === 'glad' ? 8 : a.tomorrow_feel === 'regret' ? -12 : 0)
                 + ((i % 5) - 2) * 2
             );
-            const status = base >= 70 ? 'pass' : base >= 45 ? 'warn' : 'fail';
-            push('Extended Audit', label, status,
-                `Marked in full audit #${i + 1}. Weighted against your ledger + answers.`,
-                base, 0.35);
+            addParam(P, 'Wide Lens', label, base >= 70 ? 'pass' : base >= 45 ? 'warn' : 'fail',
+                `Everyday wisdom mark #${i + 1}.`, base, 0.35);
         });
 
-        return items;
+        return P;
     }
 
     function scoreReport(parameters) {
-        let wSum = 0, sSum = 0;
-        let pass = 0, warn = 0, fail = 0, info = 0;
+        let wSum = 0, sSum = 0, pass = 0, warn = 0, fail = 0, info = 0;
         parameters.forEach(p => {
             const w = p.weight || 1;
-            wSum += w;
-            sSum += p.score * w;
+            wSum += w; sSum += p.score * w;
             if (p.status === 'pass') pass++;
             else if (p.status === 'warn') warn++;
             else if (p.status === 'fail') fail++;
             else info++;
         });
-        const overall = wSum > 0 ? Math.round(sSum / wSum) : 50;
-        return { overall, pass, warn, fail, info, total: parameters.length };
+        return { overall: wSum > 0 ? Math.round(sSum / wSum) : 50, pass, warn, fail, info, total: parameters.length };
     }
 
-    function spendabilityMeter(fin, price, answers, overall) {
-        // Dedicated "can you spend" meter 0-100
+    function lifeBalanceMeter(answers, price, overall, kind) {
         let meter = 50;
-        const budget = fin.budget || 0;
-        const left = fin.budgetLeft;
-        const income = fin.monthIncome || 0;
-        const nec = parseInt(answers.necessity || '3', 10);
+        const heart = num(answers.heart_pull || answers.joy_value);
+        const future = num(answers.future_thanks || answers.memory_value);
+        const waste = num(answers.waste_risk || answers.waste_feel);
+        const nec = num(answers.necessity);
 
-        if (left !== null) {
-            if (price <= left * 0.35) meter += 25;
-            else if (price <= left * 0.6) meter += 12;
-            else if (price <= left) meter += 2;
-            else meter -= 30;
-        } else if (budget > 0) {
-            meter += price <= budget * 0.15 ? 15 : -5;
-        } else {
-            meter -= 8;
-        }
+        if (answers.can_afford === 'easy') meter += 18;
+        else if (answers.can_afford === 'ok') meter += 8;
+        else if (answers.can_afford === 'tight') meter -= 12;
+        else if (answers.can_afford === 'no') meter -= 28;
 
-        if (income > 0) {
-            const pct = price / income;
-            if (pct < 0.08) meter += 15;
-            else if (pct < 0.15) meter += 8;
-            else if (pct < 0.3) meter -= 5;
-            else meter -= 20;
-        } else {
-            meter -= 10;
-        }
-
-        if (fin.totalBorrowed > 0) meter -= Math.min(25, 8 + fin.totalBorrowed / Math.max(price, 1) * 3);
-        if (fin.projectedMonthSpend + price > budget && budget > 0) meter -= 12;
-        if (nec >= 4) meter += 8;
-        if (nec <= 2) meter -= 8;
         if (answers.debt_risk === 'yes') meter -= 20;
-        if (answers.mood === 'yes') meter -= 10;
-        if (parseInt(answers.impulse || '3', 10) >= 4) meter -= 8;
+        if (answers.mood === 'yes' || answers.why_now === 'fomo') meter -= 10;
+        if (num(answers.impulse) >= 4) meter -= 8;
+        if (answers.habit_loop === 'yes' || answers.recent_treats === 'streak' || answers.recent_buys === 'many') meter -= 12;
 
-        // Blend a little with overall judgment
-        meter = meter * 0.7 + overall * 0.3;
-        meter = clamp(Math.round(meter));
+        // Life beyond saving — boost intentional joy when affordable
+        if ((heart >= 4 || future >= 4) && answers.can_afford !== 'no' && answers.can_afford !== 'tight') meter += 10;
+        if (answers.life_beyond === 'yes' || answers.self_kindness === 'yes') meter += 6;
+        if (answers.connection === 'yes' && answers.company_quality === 'yes') meter += 8;
+        if (answers.scarcity === 'rare') meter += 6;
+        if (nec >= 4) meter += 8;
+        if (waste >= 4) meter -= 10;
+        if (answers.tomorrow_feel === 'glad') meter += 8;
+        if (answers.tomorrow_feel === 'regret') meter -= 14;
+
+        if (price > 5000 && answers.can_afford !== 'easy') meter -= 8;
+        if (price <= 300 && kind === 'life' && answers.can_afford !== 'no') meter += 5;
+
+        meter = clamp(meter * 0.65 + overall * 0.35);
 
         let band, icon, title, message;
         if (meter >= 70) {
-            band = 'green'; icon = '✓'; title = 'You can buy';
-            message = 'Numbers look healthy enough. If the report\'s pros still outweigh cons, green light — buy with a clear head.';
+            band = 'green'; icon = '✓'; title = kind === 'life' ? 'Yes — go live it' : 'You can buy';
+            message = kind === 'life'
+                ? 'This looks like intentional living, not waste. If your heart and tomorrow-you agree, say yes and savor it.'
+                : 'Numbers and answers look healthy enough. If the use-case is real, green light — buy with a clear head.';
         } else if (meter >= 40) {
-            band = 'yellow'; icon = '!'; title = 'Risk — but you can spend';
-            message = 'You might afford it, but it stretches you. Prefer waiting, saving a chunk first, or cutting something else this month.';
+            band = 'yellow'; icon = '!'; title = kind === 'life' ? 'Maybe — choose consciously' : 'Risk — but you can spend';
+            message = kind === 'life'
+                ? 'Possible, but not automatic. Shrink it, postpone it, or keep it only if meaning is high.'
+                : 'You might manage it, but it stretches you. Prefer waiting, saving a chunk, or a cheaper tier.';
         } else {
-            band = 'red'; icon = '✕'; title = "Don't buy right now";
-            message = 'This fights your ledger. Protect your buffer. Wait, save, clear debt pressure, or find a cheaper path.';
+            band = 'red'; icon = '✕'; title = kind === 'life' ? 'Not this — care differently' : "Don't buy right now";
+            message = kind === 'life'
+                ? 'This leans wasteful or heavy. Care for yourself in a gentler, cheaper way tonight.'
+                : 'This fights your comfort zone. Wait, save, or find another path.';
         }
         return { meter, band, icon, title, message };
     }
 
-    function buildVerdict(overall, meterInfo, answers, fin, price) {
-        const nec = parseInt(answers.necessity || '0', 10);
+    function buildProductVerdict(overall, meter, answers, price, product) {
+        const nec = num(answers.necessity);
+        const joy = num(answers.joy_value);
         let action;
-        if (meterInfo.band === 'green' && overall >= 65) action = 'BUY NOW';
-        else if (meterInfo.band === 'green' && overall >= 50) action = 'BUY — WITH EYES OPEN';
-        else if (meterInfo.band === 'yellow' && nec >= 4) action = 'BUY ONLY IF CRITICAL — ELSE WAIT';
-        else if (meterInfo.band === 'yellow') action = 'WAIT & SAVE';
-        else if (nec >= 5 && answers.work_impact === '5') action = 'LAST RESORT BUY — MINIMIZE COST';
+        if (meter.band === 'green' && overall >= 65) action = 'BUY NOW';
+        else if (meter.band === 'green') action = 'BUY — WITH EYES OPEN';
+        else if (meter.band === 'yellow' && nec >= 4) action = 'BUY ONLY IF CRITICAL — ELSE WAIT';
+        else if (meter.band === 'yellow' && joy >= 4 && answers.can_afford === 'easy' && answers.life_beyond === 'yes') action = 'SMALL YES — OR WAIT ONE NIGHT';
+        else if (meter.band === 'yellow') action = 'WAIT & SAVE';
+        else if (nec >= 5) action = 'LAST RESORT — MINIMIZE COST';
         else action = 'DO NOT BUY YET';
 
         const pros = [];
         const cons = [];
         if (nec >= 4) pros.push('You rated this as genuinely necessary.');
-        if (parseInt(answers.work_impact || '0', 10) >= 4) pros.push('Work/studies are actually hampered without it.');
-        if (answers.usage_freq === 'daily' || answers.usage_freq === 'weekly') pros.push('You expect frequent real-world use.');
+        if (num(answers.work_impact) >= 4) pros.push('Work/study is actually hampered without it.');
+        if (answers.usage_freq === 'daily' || answers.usage_freq === 'weekly') pros.push('You expect frequent real use.');
         if (answers.lifespan === 'years') pros.push('Long useful life improves value.');
-        if (answers.researched === 'deep') pros.push('You researched properly instead of impulse-clicking.');
-        if (fin.budgetLeft !== null && fin.budgetLeft - price > (fin.budget || 0) * 0.2) pros.push('Budget buffer would survive this purchase.');
-        if (fin.totalBorrowed === 0) pros.push('No open borrowed debts hanging over you.');
-        if (_product && _product.rating && _product.rating >= 4.2) pros.push(`Solid rating (${_product.rating.toFixed(1)}★).`);
+        if (answers.researched === 'deep') pros.push('You researched properly.');
+        if (answers.can_afford === 'easy') pros.push('You can afford it without stress.');
+        if (joy >= 4 && answers.life_beyond === 'yes') pros.push('You\'ve been strict — thoughtful joy has a place.');
+        if (product.rating && product.rating >= 4.2) pros.push(`Solid rating (${product.rating.toFixed(1)}★).`);
 
-        if (fin.budgetLeft !== null && fin.budgetLeft - price < 0) cons.push('This purchase overshoots your monthly budget.');
-        if (fin.totalBorrowed > 0) cons.push(`Open debts total ${fmt(fin.totalBorrowed)} — that debt still has first claim.`);
-        if (parseInt(answers.impulse || '0', 10) >= 4) cons.push('Impulse is high; desire may be louder than need.');
+        if (answers.can_afford === 'no' || answers.can_afford === 'tight') cons.push('Money comfort is low for this price.');
+        if (num(answers.impulse) >= 4) cons.push('Impulse is high.');
         if (answers.mood === 'yes') cons.push('Mood-driven buying detected.');
-        if (answers.already_own === 'yes') cons.push('You already own a similar thing.');
+        if (answers.already_own === 'yes') cons.push('You already own something similar.');
         if (answers.usage_freq === 'rarely') cons.push('Rare usage makes cost-per-use ugly.');
         if (answers.debt_risk === 'yes') cons.push('Would create or worsen debt.');
         if (answers.save_first === 'yes') cons.push('Even you admit you could wait and save.');
-        if (!fin.budget) cons.push('No budget set in Financial Ledger — weak visibility.');
+        if (num(answers.waste_risk) >= 4) cons.push('High chance of unused clutter.');
 
         const brother = [
-            `Alright — I looked at the product, your answers, and every rupee in your Financial Ledger.`,
-            `Price on the table: ${fmt(price)}. Month spend ${fmt(fin.monthSpend)}, income ${fmt(fin.monthIncome)}, budget left ${fin.budgetLeft === null ? 'unset' : fmt(fin.budgetLeft)}.`,
-            meterInfo.band === 'green'
-                ? `Spendability meter is ${meterInfo.meter}/100 — green. You are cleared on cashflow if the use-case is real.`
-                : meterInfo.band === 'yellow'
-                    ? `Spendability meter is ${meterInfo.meter}/100 — yellow. Affordable-ish, but it nibbles your safety.`
-                    : `Spendability meter is ${meterInfo.meter}/100 — red. I would block this if I could swipe the card for you.`,
-            `Overall judgment score: ${overall}/100 across ${_lastReport ? _lastReport.stats.total : '100+'} marked parameters.`,
+            `Alright — I looked at the product and your honest answers. (Financial Ledger stays out of this — we keep that separate.)`,
+            `Price on the table: ${fmt(price)}.`,
+            meter.band === 'green'
+                ? `Life-balance meter ${meter.meter}/100 — green. Cash comfort and purpose are aligned enough.`
+                : meter.band === 'yellow'
+                    ? `Life-balance meter ${meter.meter}/100 — yellow. Affordable-ish, but not a free pass.`
+                    : `Life-balance meter ${meter.meter}/100 — red. I'd stop your hand on the buy button.`,
+            `Judgment score: ${overall}/100 across the full marked audit.`,
             action.includes('WAIT') || action.includes('DO NOT')
-                ? `My call: ${action}. Save deliberately — even ${fmt(Math.ceil(price / 4))}/week gets you there without drama.`
-                : `My call: ${action}. If you proceed, log it in Finance immediately so the ledger stays honest.`,
-            answers.notes ? `You also told me: “${answers.notes}”. I weighed that.` : `Next time, add a note — context makes my advice sharper.`
+                ? `My call: ${action}. Saving ${fmt(Math.ceil(price / 4))}/week is a calm path if you still want it.`
+                : `My call: ${action}. If you proceed, stay present with why you bought it — not just the unboxing hit.`,
+            `Remember: saving money matters, and so does a life that feels alive. The win is avoiding waste — not avoiding joy.`,
+            answers.notes ? `You also told me: “${answers.notes}”. I weighed that.` : `Next time, add a note — context makes me sharper.`
         ];
-
         return { action, pros, cons, brother };
+    }
+
+    function buildLifeVerdict(overall, meter, answers, price, meta) {
+        const heart = num(answers.heart_pull);
+        const memory = num(answers.memory_value);
+        let action;
+        if (meter.band === 'green' && overall >= 65) action = 'YES — DO IT & SAVOR IT';
+        else if (meter.band === 'green') action = 'YES — KEEP IT INTENTIONAL';
+        else if (meter.band === 'yellow' && (memory >= 4 || answers.scarcity === 'rare' || answers.connection === 'yes')) action = 'YES IF MEANING IS HIGH — ELSE SHRINK IT';
+        else if (meter.band === 'yellow') action = 'PAUSE — OR CHOOSE A LIGHTER VERSION';
+        else if (answers.self_kindness === 'yes' && price <= 300 && answers.can_afford !== 'no') action = 'TINY MERCY TREAT OK — KEEP IT SMALL';
+        else action = 'SKIP — CARE FOR YOURSELF ANOTHER WAY';
+
+        const pros = [];
+        const cons = [];
+        if (heart >= 4) pros.push('Your heart genuinely wants this.');
+        if (memory >= 4) pros.push('Strong memory potential.');
+        if (answers.connection === 'yes') pros.push('It deepens a real human connection.');
+        if (answers.scarcity === 'rare') pros.push('Rare window — timing matters.');
+        if (answers.can_afford === 'easy') pros.push('No money anxiety attached.');
+        if (answers.self_kindness === 'yes' && answers.recent_treats === 'long') pros.push('You\'ve been disciplined — a mindful yes can be healthy.');
+        if (answers.presence === 'yes') pros.push('You plan to actually be present.');
+        if (answers.tomorrow_feel === 'glad') pros.push('You expect to feel glad tomorrow.');
+
+        if (answers.can_afford === 'no' || answers.can_afford === 'tight') cons.push('Money anxiety would tag along.');
+        if (answers.why_now === 'fomo') cons.push('FOMO is driving this.');
+        if (answers.habit_loop === 'yes' || answers.recent_treats === 'streak') cons.push('This feeds a spend streak / autopilot habit.');
+        if (num(answers.waste_feel) >= 4) cons.push('Your gut already calls it wasteful.');
+        if (answers.tomorrow_feel === 'regret') cons.push('You already predict regret.');
+        if (answers.obligation === 'pressure') cons.push('Pressure, not desire.');
+        if (answers.presence === 'no') cons.push('You probably won\'t even savor it.');
+        if (answers.health === 'bad') cons.push('Tomorrow\'s body pays interest.');
+
+        const brother = [
+            `Hey — this isn't only about being cheap. It's about spending like someone who wants both a future and a present.`,
+            `You're asking about: ${meta.title} (${fmt(price)}${meta.alt ? ` · alt: ${meta.alt}` : ''}).`,
+            meter.band === 'green'
+                ? `Life-balance meter ${meter.meter}/100 — green. This can be living, not leaking.`
+                : meter.band === 'yellow'
+                    ? `Life-balance meter ${meter.meter}/100 — yellow. Maybe — but make it conscious.`
+                    : `Life-balance meter ${meter.meter}/100 — red. Care for the need underneath, not only the cart.`,
+            `Judgment score: ${overall}/100 with every parameter marked.`,
+            `My call: ${action}.`,
+            answers.why_now === 'rest' || answers.body_energy === 'drained'
+                ? `If you're tired: rest is allowed. Ordering out / a small treat can be kindness — just don't let autopilot own you.`
+                : `Joy is allowed. Waste is optional. Choose the one that leaves you proud tomorrow.`,
+            answers.notes ? `I heard you: “${answers.notes}”.` : `If you tell me more next time, I'll advise even closer to your heart.`
+        ];
+        return { action, pros, cons, brother };
+    }
+
+    function statusIcon(st) {
+        return { pass: '✓', warn: '!', fail: '✕', info: '•' }[st] || '•';
     }
 
     function groupByCategory(parameters) {
@@ -873,30 +806,24 @@ const BuyModule = (() => {
         return map;
     }
 
-    function statusIcon(st) {
-        return { pass: '✓', warn: '!', fail: '✕', info: '•' }[st] || '•';
-    }
-
     function renderReport(report) {
         const root = document.getElementById('buy-report');
         if (!root) return;
         root.classList.remove('hidden');
         root.innerHTML = '';
 
-        const { product, price, meter, stats, verdict, parameters, fin } = report;
+        const { kind, subject, price, meter, stats, verdict, parameters } = report;
 
-        // Hero verdict
         const hero = Utils.el('div', { className: `buy-report-hero buy-band-${meter.band}` });
-        hero.appendChild(Utils.el('div', { className: 'buy-verdict-kicker', textContent: 'Big Brother Verdict' }));
+        hero.appendChild(Utils.el('div', { className: 'buy-verdict-kicker', textContent: kind === 'life' ? 'Heart + Head Verdict' : 'Big Brother Verdict' }));
         hero.appendChild(Utils.el('h3', { className: 'buy-verdict-action', textContent: verdict.action }));
         hero.appendChild(Utils.el('p', { className: 'buy-verdict-sub', textContent: meter.title + ' — ' + meter.message }));
 
-        // Meter
         const meterWrap = Utils.el('div', { className: 'buy-meter-wrap' });
         const meterRing = Utils.el('div', { className: `buy-meter buy-meter-${meter.band}` });
         meterRing.appendChild(Utils.el('div', { className: 'buy-meter-icon', textContent: meter.icon }));
         meterRing.appendChild(Utils.el('div', { className: 'buy-meter-number', textContent: String(meter.meter) }));
-        meterRing.appendChild(Utils.el('div', { className: 'buy-meter-label', textContent: 'Spendability' }));
+        meterRing.appendChild(Utils.el('div', { className: 'buy-meter-label', textContent: 'Life balance' }));
         meterWrap.appendChild(meterRing);
 
         const meterSide = Utils.el('div', { className: 'buy-meter-side' });
@@ -916,40 +843,37 @@ const BuyModule = (() => {
         hero.appendChild(meterWrap);
         root.appendChild(hero);
 
-        // Product card
+        // Subject card
         const prod = Utils.el('div', { className: 'glass-card buy-product-card' });
-        prod.appendChild(Utils.el('h4', { className: 'card-title', textContent: 'Product under review' }));
+        prod.appendChild(Utils.el('h4', { className: 'card-title', textContent: kind === 'life' ? 'Moment under review' : 'Product under review' }));
         const prodRow = Utils.el('div', { className: 'buy-product-row' });
-        if (product.image) {
-            prodRow.appendChild(Utils.el('img', { className: 'buy-product-img', src: product.image, alt: '', loading: 'lazy', referrerpolicy: 'no-referrer' }));
+        if (subject.image) {
+            prodRow.appendChild(Utils.el('img', { className: 'buy-product-img', src: subject.image, alt: '', loading: 'lazy', referrerpolicy: 'no-referrer' }));
         }
         const prodInfo = Utils.el('div', { className: 'buy-product-info' });
-        prodInfo.appendChild(Utils.el('div', { className: 'buy-product-title', textContent: product.title || 'Untitled product' }));
+        prodInfo.appendChild(Utils.el('div', { className: 'buy-product-title', textContent: subject.title || 'Untitled' }));
         prodInfo.appendChild(Utils.el('div', { className: 'buy-product-meta', textContent:
-            `${fmt(price)} · ${product.host || 'link'}` +
-            (product.rating != null ? ` · ${product.rating.toFixed(1)}★` : '') +
-            (product.review_count != null ? ` (${product.review_count.toLocaleString('en-IN')} reviews)` : '')
+            `${fmt(price)}` +
+            (subject.host ? ` · ${subject.host}` : '') +
+            (subject.typeLabel ? ` · ${subject.typeLabel}` : '') +
+            (subject.rating != null ? ` · ${Number(subject.rating).toFixed(1)}★` : '') +
+            (subject.alt ? ` · alt: ${subject.alt}` : '')
         }));
-        if (product.description) {
-            prodInfo.appendChild(Utils.el('p', { className: 'buy-product-desc', textContent: product.description.slice(0, 220) }));
+        if (subject.description) {
+            prodInfo.appendChild(Utils.el('p', { className: 'buy-product-desc', textContent: String(subject.description).slice(0, 220) }));
         }
-        if (product.url) {
-            const link = Utils.el('a', { href: product.url, target: '_blank', rel: 'noopener noreferrer', className: 'buy-product-link', textContent: 'Open product link →' });
-            prodInfo.appendChild(link);
+        if (subject.url) {
+            prodInfo.appendChild(Utils.el('a', { href: subject.url, target: '_blank', rel: 'noopener noreferrer', className: 'buy-product-link', textContent: 'Open link →' }));
         }
         prodRow.appendChild(prodInfo);
         prod.appendChild(prodRow);
         root.appendChild(prod);
 
-        // Brother narrative
         const letter = Utils.el('div', { className: 'glass-card buy-brother-card' });
-        letter.appendChild(Utils.el('h4', { className: 'card-title', textContent: 'Straight talk' }));
-        verdict.brother.forEach(line => {
-            letter.appendChild(Utils.el('p', { className: 'buy-brother-line', textContent: line }));
-        });
+        letter.appendChild(Utils.el('h4', { className: 'card-title', textContent: kind === 'life' ? 'Straight talk (with heart)' : 'Straight talk' }));
+        verdict.brother.forEach(line => letter.appendChild(Utils.el('p', { className: 'buy-brother-line', textContent: line })));
         root.appendChild(letter);
 
-        // Pros / Cons
         const pc = Utils.el('div', { className: 'buy-proscons' });
         const prosC = Utils.el('div', { className: 'glass-card buy-pros' });
         prosC.appendChild(Utils.el('h4', { className: 'card-title', textContent: 'Pros' }));
@@ -958,41 +882,15 @@ const BuyModule = (() => {
         });
         const consC = Utils.el('div', { className: 'glass-card buy-cons' });
         consC.appendChild(Utils.el('h4', { className: 'card-title', textContent: 'Cons' }));
-        (verdict.cons.length ? verdict.cons : ['No major red flags from your answers — still read the full audit.']).forEach(t => {
+        (verdict.cons.length ? verdict.cons : ['No major red flags — still read the full audit.']).forEach(t => {
             consC.appendChild(Utils.el('div', { className: 'buy-pc-item', textContent: '✕ ' + t }));
         });
-        pc.appendChild(prosC);
-        pc.appendChild(consC);
+        pc.appendChild(prosC); pc.appendChild(consC);
         root.appendChild(pc);
 
-        // Ledger snapshot used
-        const snap = Utils.el('div', { className: 'glass-card' });
-        snap.appendChild(Utils.el('h4', { className: 'card-title', textContent: 'Ledger facts used' }));
-        const grid = Utils.el('div', { className: 'buy-ledger-grid' });
-        [
-            ['Budget', fin.budget ? fmt(fin.budget) : '—'],
-            ['Budget left', fin.budgetLeft === null ? '—' : fmt(fin.budgetLeft)],
-            ['Month spend', fmt(fin.monthSpend)],
-            ['Month income', fmt(fin.monthIncome)],
-            ['Week spend', fmt(fin.weekSpend)],
-            ['Today spend', fmt(fin.todaySpend)],
-            ['Borrowed open', fmt(fin.totalBorrowed)],
-            ['Lent open', fmt(fin.totalLent)],
-            ['Shopping (mo)', fmt(fin.shoppingSpend)],
-            ['Projected month', fmt(fin.projectedMonthSpend)]
-        ].forEach(([k, v]) => {
-            grid.appendChild(Utils.el('div', { className: 'buy-ledger-cell' },
-                Utils.el('span', { textContent: k }),
-                Utils.el('strong', { textContent: v })
-            ));
-        });
-        snap.appendChild(grid);
-        root.appendChild(snap);
-
-        // Full parameter audit
         const audit = Utils.el('div', { className: 'glass-card buy-audit-card' });
         audit.appendChild(Utils.el('h4', { className: 'card-title', textContent: `Full parameter audit (${stats.total})` }));
-        audit.appendChild(Utils.el('p', { className: 'buy-audit-intro', textContent: 'Every point below is marked. Green pass, yellow risk, red fail.' }));
+        audit.appendChild(Utils.el('p', { className: 'buy-audit-intro', textContent: 'Every point is marked. Green pass, yellow risk, red fail. Built from your answers' + (kind === 'product' ? ' + product signals' : ' + life context') + ' — not the Financial Ledger.' }));
 
         const grouped = groupByCategory(parameters);
         Object.keys(grouped).forEach(cat => {
@@ -1002,7 +900,7 @@ const BuyModule = (() => {
             const head = Utils.el('button', { className: 'buy-audit-cat-head', type: 'button' });
             head.appendChild(Utils.el('span', { textContent: cat }));
             head.appendChild(Utils.el('span', { className: 'buy-audit-cat-score', textContent: `${catAvg} · ${catParams.length} pts` }));
-            const body = Utils.el('div', { className: 'buy-audit-cat-body' });
+            const body = Utils.el('div', { className: 'buy-audit-cat-body open' });
             catParams.forEach(p => {
                 const row = Utils.el('div', { className: `buy-param buy-param-${p.status}` });
                 row.appendChild(Utils.el('span', { className: 'buy-param-mark', textContent: statusIcon(p.status) }));
@@ -1014,14 +912,12 @@ const BuyModule = (() => {
                 body.appendChild(row);
             });
             head.addEventListener('click', () => body.classList.toggle('open'));
-            body.classList.add('open');
             block.appendChild(head);
             block.appendChild(body);
             audit.appendChild(block);
         });
         root.appendChild(audit);
 
-        // Actions
         const actions = Utils.el('div', { className: 'buy-report-actions' });
         const saveBtn = Utils.el('button', { className: 'btn-primary', type: 'button', textContent: '💾 Save this verdict' });
         saveBtn.addEventListener('click', () => saveDecision(report));
@@ -1029,12 +925,12 @@ const BuyModule = (() => {
         againBtn.addEventListener('click', () => {
             root.classList.add('hidden');
             root.innerHTML = '';
-            document.getElementById('buy-input-section')?.scrollIntoView({ behavior: 'smooth' });
+            const target = kind === 'life' ? 'life-input-section' : 'buy-input-section';
+            document.getElementById(target)?.scrollIntoView({ behavior: 'smooth' });
         });
         actions.appendChild(saveBtn);
         actions.appendChild(againBtn);
         root.appendChild(actions);
-
         root.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
 
@@ -1043,9 +939,10 @@ const BuyModule = (() => {
             id: Utils.uid(),
             createdAt: Date.now(),
             date: Utils.todayStr(),
-            title: report.product.title || 'Product',
-            url: report.product.url || '',
-            host: report.product.host || '',
+            kind: report.kind || 'product',
+            title: report.subject.title || 'Decision',
+            url: report.subject.url || '',
+            host: report.subject.host || '',
             price: report.price,
             meter: report.meter.meter,
             band: report.meter.band,
@@ -1077,13 +974,13 @@ const BuyModule = (() => {
         all.slice(0, 20).forEach(rec => {
             const card = Utils.el('div', { className: `buy-history-item buy-band-${rec.band || 'yellow'}` });
             card.appendChild(Utils.el('div', { className: 'buy-history-top' },
-                Utils.el('strong', { textContent: rec.title || 'Product' }),
+                Utils.el('strong', { textContent: `${rec.kind === 'life' ? '🌙 ' : '🛒 '}${rec.title || 'Decision'}` }),
                 Utils.el('span', { className: 'buy-history-meter', textContent: `${rec.meter ?? '—'}` })
             ));
             card.appendChild(Utils.el('div', { className: 'buy-history-meta', textContent:
                 `${fmt(rec.price || 0)} · ${rec.action || ''} · ${rec.date || ''}`
             }));
-            const del = Utils.el('button', { className: 'buy-history-del', type: 'button', textContent: 'Delete', title: 'Delete' });
+            const del = Utils.el('button', { className: 'buy-history-del', type: 'button', textContent: 'Delete' });
             del.addEventListener('click', async () => {
                 await ThriveDB.remove('buyDecisions', rec.id);
                 Utils.toast('Removed', 'warning');
@@ -1118,7 +1015,7 @@ const BuyModule = (() => {
         const t = title.trim().toLowerCase();
         return !t || t.length < 3
             || ['amazon.in', 'amazon.com', 'page not found', 'flipkart', 'error', 'site maintenance'].includes(t)
-            || t.includes('service unavailable') || t.includes('access denied');
+            || t.includes('service unavailable') || t.includes('access denied') || t.startsWith('buy products online');
     }
 
     async function fetchMicrolinkClient(url) {
@@ -1152,22 +1049,10 @@ const BuyModule = (() => {
         const base = primary && primary.ok ? primary : (fallback && fallback.ok ? fallback : null);
         const other = base === primary ? fallback : primary;
         const out = Object.assign({
-            ok: true,
-            url,
-            host: '',
-            title: '',
-            description: '',
-            image: '',
-            price: null,
-            currency: 'INR',
-            rating: null,
-            review_count: null,
-            brand: '',
-            availability: '',
-            sentiment: { score: 55, summary: 'Best-effort product read.' },
-            sources: [],
-            partial: true,
-            note: ''
+            ok: true, url, host: '', title: '', description: '', image: '',
+            price: null, currency: 'INR', rating: null, review_count: null, brand: '',
+            availability: '', sentiment: { score: 55, summary: 'Best-effort product read.' },
+            sources: [], partial: true, note: ''
         }, base || {});
 
         if (other && other.ok) {
@@ -1192,11 +1077,7 @@ const BuyModule = (() => {
         let cleaned = (url || '').trim().split(/\s+/)[0].replace(/^<|>$/g, '');
         if (!/^https?:\/\//i.test(cleaned)) cleaned = 'https://' + cleaned;
 
-        let serverData = null;
-        let clientData = null;
         let serverErr = null;
-
-        // Run server + browser microlink in parallel for reliability
         const serverP = fetch('/api/buy/analyze', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -1208,21 +1089,13 @@ const BuyModule = (() => {
         }).catch(err => { serverErr = err; return null; });
 
         const clientP = fetchMicrolinkClient(cleaned).catch(() => null);
-
-        const settled = await Promise.all([serverP, clientP]);
-        serverData = settled[0];
-        clientData = settled[1];
-
+        const [serverData, clientData] = await Promise.all([serverP, clientP]);
         const merged = mergeProductData(serverData, clientData, cleaned);
         if (!serverData && !clientData) {
-            // Absolute last resort — still succeed so analysis can continue
             return mergeProductData({
-                ok: true,
-                url: cleaned,
-                title: titleFromUrl(cleaned),
+                ok: true, url: cleaned, title: titleFromUrl(cleaned),
                 description: 'Could not read the store page (blocked). Enter price manually.',
-                sources: ['url-heuristic'],
-                partial: true,
+                sources: ['url-heuristic'], partial: true,
                 note: (serverErr && serverErr.message) ? serverErr.message : 'Store blocked automated reads.',
                 sentiment: { score: 50, summary: 'No page content available.' }
             }, null, cleaned);
@@ -1266,18 +1139,16 @@ const BuyModule = (() => {
         if (titleInput && product.title) titleInput.value = product.title;
     }
 
-    async function runAnalysis() {
+    async function runProductAnalysis() {
         const url = (document.getElementById('buy-url')?.value || '').trim();
         const manualPrice = parseFloat(document.getElementById('buy-price')?.value || '');
         const manualTitle = (document.getElementById('buy-title')?.value || '').trim();
-        const answers = collectAnswers();
-        _answers = answers;
+        const answers = collectAnswers('buy-questions', PRODUCT_QUESTIONS);
 
-        const required = QUESTIONS.filter(q => q.type !== 'text');
-        const missing = required.filter(q => !answers[q.id]);
+        const missing = PRODUCT_QUESTIONS.filter(q => q.type !== 'text' && !answers[q.id]);
         if (missing.length) {
             Utils.toast(`Answer all questions (${missing.length} left)`, 'warning');
-            document.querySelector(`[data-qid="${missing[0].id}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            document.querySelector(`#buy-questions [data-qid="${missing[0].id}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
             return;
         }
 
@@ -1303,28 +1174,27 @@ const BuyModule = (() => {
                 product = {
                     ok: true, url: '', host: 'manual entry', title: manualTitle || 'Manual product',
                     description: '', image: '', price: null, rating: null, review_count: null,
-                    brand: '', availability: '', sentiment: { score: 55, summary: 'Analyzed from your answers + ledger (no link).' }
+                    brand: '', availability: '', sentiment: { score: 55, summary: 'Analyzed from your answers (no link).' }
                 };
             }
 
             if (manualTitle) product.title = manualTitle;
-            const price = !Number.isNaN(manualPrice) && manualPrice > 0
-                ? manualPrice
-                : (product.price || 0);
+            const price = !Number.isNaN(manualPrice) && manualPrice > 0 ? manualPrice : (product.price || 0);
             if (!price || price <= 0) {
                 Utils.toast('Enter the product price', 'warning');
                 document.getElementById('buy-price')?.focus();
                 return;
             }
 
-            const fin = await loadFinanceContext();
-            const parameters = buildParameters(product, answers, fin, price);
+            const parameters = buildProductParameters(product, answers, price);
             const stats = scoreReport(parameters);
-            _lastReport = { stats };
-            const meter = spendabilityMeter(fin, price, answers, stats.overall);
-            const verdict = buildVerdict(stats.overall, meter, answers, fin, price);
-
-            const report = { product, price, answers, fin, parameters, stats, meter, verdict };
+            const meter = lifeBalanceMeter(answers, price, stats.overall, 'product');
+            const verdict = buildProductVerdict(stats.overall, meter, answers, price, product);
+            const report = {
+                kind: 'product',
+                subject: product,
+                price, answers, parameters, stats, meter, verdict
+            };
             _lastReport = report;
             renderReport(report);
             Utils.toast('Full report ready', 'success');
@@ -1336,7 +1206,63 @@ const BuyModule = (() => {
         }
     }
 
+    async function runLifeAnalysis() {
+        const typeEl = document.getElementById('life-type');
+        const type = typeEl ? typeEl.value : 'other';
+        const typeLabel = typeEl && typeEl.selectedOptions[0] ? typeEl.selectedOptions[0].textContent : type;
+        const title = (document.getElementById('life-title')?.value || '').trim();
+        const price = parseFloat(document.getElementById('life-price')?.value || '');
+        const alt = (document.getElementById('life-alt')?.value || '').trim();
+        const answers = collectAnswers('life-questions', LIFE_QUESTIONS);
+
+        if (!title) {
+            Utils.toast('Describe the decision first', 'warning');
+            document.getElementById('life-title')?.focus();
+            return;
+        }
+        if (Number.isNaN(price) || price < 0) {
+            Utils.toast('Enter the cost (0 is ok for free plans)', 'warning');
+            document.getElementById('life-price')?.focus();
+            return;
+        }
+
+        const missing = LIFE_QUESTIONS.filter(q => q.type !== 'text' && !answers[q.id]);
+        if (missing.length) {
+            Utils.toast(`Answer all questions (${missing.length} left)`, 'warning');
+            document.querySelector(`#life-questions [data-qid="${missing[0].id}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            return;
+        }
+
+        const btn = document.getElementById('btn-life-analyze');
+        if (btn) { btn.disabled = true; btn.textContent = 'Listening…'; }
+
+        try {
+            const meta = { type, typeLabel, title, alt };
+            const parameters = buildLifeParameters(answers, price, meta);
+            const stats = scoreReport(parameters);
+            const meter = lifeBalanceMeter(answers, price, stats.overall, 'life');
+            const verdict = buildLifeVerdict(stats.overall, meter, answers, price, meta);
+            const report = {
+                kind: 'life',
+                subject: { title, typeLabel, alt, description: `Daily life decision · ${typeLabel}` },
+                price, answers, parameters, stats, meter, verdict
+            };
+            _lastReport = report;
+            renderReport(report);
+            Utils.toast('Full report ready', 'success');
+        } catch (err) {
+            console.error('[BuyModule]', err);
+            Utils.toast(err.message || 'Analysis failed', 'error');
+        } finally {
+            if (btn) { btn.disabled = false; btn.textContent = '💛 Analyze — Should I do this?'; }
+        }
+    }
+
     function wireEvents() {
+        document.querySelectorAll('.buy-mode-tab').forEach(tab => {
+            tab.addEventListener('click', () => setMode(tab.dataset.buymode));
+        });
+
         document.getElementById('btn-buy-fetch')?.addEventListener('click', async () => {
             const url = (document.getElementById('buy-url')?.value || '').trim();
             if (!url) { Utils.toast('Paste a product link first', 'warning'); return; }
@@ -1345,22 +1271,12 @@ const BuyModule = (() => {
             try {
                 const product = await fetchProduct(url);
                 applyProductToForm(product);
-                if (product.price != null) {
-                    Utils.toast('Product details loaded', 'success');
-                } else if (product.partial) {
-                    Utils.toast('Link read — enter/confirm the price', 'warning');
-                } else {
-                    Utils.toast('Product details loaded', 'success');
-                }
+                Utils.toast(product.price != null ? 'Product details loaded' : 'Link read — enter/confirm the price', product.price != null ? 'success' : 'warning');
             } catch (e) {
-                // Still try to prefill from URL so user is never stuck
                 const fallback = mergeProductData({
-                    ok: true,
-                    url,
-                    title: titleFromUrl(url),
+                    ok: true, url, title: titleFromUrl(url),
                     description: 'Enter price manually to continue.',
-                    partial: true,
-                    sources: ['url-heuristic'],
+                    partial: true, sources: ['url-heuristic'],
                     sentiment: { score: 50, summary: 'Manual entry mode.' }
                 }, null, url);
                 applyProductToForm(fallback);
@@ -1370,7 +1286,8 @@ const BuyModule = (() => {
             }
         });
 
-        document.getElementById('btn-buy-analyze')?.addEventListener('click', () => runAnalysis());
+        document.getElementById('btn-buy-analyze')?.addEventListener('click', () => runProductAnalysis());
+        document.getElementById('btn-life-analyze')?.addEventListener('click', () => runLifeAnalysis());
 
         document.getElementById('buy-url')?.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') {
@@ -1379,12 +1296,10 @@ const BuyModule = (() => {
             }
         });
 
-        // Refresh finance strip when navigating to this page
         document.getElementById('nav-buy')?.addEventListener('click', () => {
-            refreshFinanceStrip();
             renderHistory();
         });
     }
 
-    return { init, refreshFinanceStrip };
+    return { init };
 })();

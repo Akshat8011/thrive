@@ -572,42 +572,85 @@
                 </div>
             </section>
 
-            <!-- PAGE: SHOULD I BUY THIS -->
+            <!-- PAGE: SHOULD I BUY / LIFE DECISIONS -->
             <section id="page-buy" class="page" data-page="buy">
                 <div class="page-scroll-area">
                     <div class="page-header">
-                        <h2>Should I Buy This?</h2>
-                        <p class="page-subtitle">Big-brother purchase advisor · ledger-aware</p>
+                        <h2>Should I?</h2>
+                        <p class="page-subtitle">Product buys &amp; everyday life calls — save wisely, live fully</p>
                     </div>
 
-                    <div id="buy-finance-strip" class="buy-finance-strip"></div>
+                    <div class="buy-mode-tabs">
+                        <button type="button" class="buy-mode-tab active" data-buymode="product" id="buy-tab-product">🛒 Product link</button>
+                        <button type="button" class="buy-mode-tab" data-buymode="life" id="buy-tab-life">🌙 Daily life</button>
+                    </div>
 
-                    <div id="buy-input-section">
-                        <h3 class="section-title">Product</h3>
-                        <div class="glass-card buy-input-card">
-                            <label class="buy-field-label" for="buy-url">Product link</label>
-                            <div class="buy-url-row">
-                                <input type="url" id="buy-url" placeholder="https://… Amazon / Flipkart / any product URL" autocomplete="off">
-                                <button type="button" id="btn-buy-fetch" class="btn-secondary">🔎 Read link</button>
-                            </div>
-                            <div class="buy-price-row">
-                                <div>
-                                    <label class="buy-field-label" for="buy-title">Title (optional override)</label>
-                                    <input type="text" id="buy-title" placeholder="Product name" maxlength="120" autocomplete="off">
+                    <!-- PRODUCT MODE -->
+                    <div id="buy-mode-product" class="buy-mode-panel">
+                        <div id="buy-input-section">
+                            <h3 class="section-title">Product</h3>
+                            <div class="glass-card buy-input-card">
+                                <label class="buy-field-label" for="buy-url">Product link</label>
+                                <div class="buy-url-row">
+                                    <input type="url" id="buy-url" placeholder="https://… Amazon / Flipkart / any product URL" autocomplete="off">
+                                    <button type="button" id="btn-buy-fetch" class="btn-secondary">🔎 Read link</button>
                                 </div>
-                                <div>
-                                    <label class="buy-field-label" for="buy-price">Price (₹)</label>
-                                    <input type="number" id="buy-price" placeholder="Amount" min="1" step="1" required>
+                                <div class="buy-price-row">
+                                    <div>
+                                        <label class="buy-field-label" for="buy-title">Title (optional override)</label>
+                                        <input type="text" id="buy-title" placeholder="Product name" maxlength="120" autocomplete="off">
+                                    </div>
+                                    <div>
+                                        <label class="buy-field-label" for="buy-price">Price (₹)</label>
+                                        <input type="number" id="buy-price" placeholder="Amount" min="1" step="1">
+                                    </div>
                                 </div>
+                                <p class="buy-hint">Reads price, rating &amp; review vibe from the link. Override anytime. Analysis uses your answers only — not the Financial Ledger.</p>
+                                <div id="buy-product-preview" class="buy-product-preview hidden"></div>
                             </div>
-                            <p class="buy-hint">Link is scanned for price, rating & review vibe. You can always override the price. No link? Enter title + price and answer the questions.</p>
-                            <div id="buy-product-preview" class="buy-product-preview hidden"></div>
+
+                            <h3 class="section-title">Honest answers</h3>
+                            <div id="buy-questions" class="buy-questions"></div>
+                            <button type="button" id="btn-buy-analyze" class="btn-primary buy-analyze-btn">🧠 Analyze — Should I buy?</button>
                         </div>
+                    </div>
 
-                        <h3 class="section-title">Honest answers</h3>
-                        <div id="buy-questions" class="buy-questions"></div>
+                    <!-- DAILY LIFE MODE -->
+                    <div id="buy-mode-life" class="buy-mode-panel hidden">
+                        <div id="life-input-section">
+                            <h3 class="section-title">What's the decision?</h3>
+                            <div class="glass-card buy-input-card">
+                                <label class="buy-field-label" for="life-type">Type of moment</label>
+                                <select id="life-type">
+                                    <option value="food">🍽 Food / restaurant / ordering in</option>
+                                    <option value="treat">🍦 Small treat (ice cream, coffee, snack)</option>
+                                    <option value="movie">🎬 Movie / show / outing</option>
+                                    <option value="travel">✈ Travel / trip / getaway</option>
+                                    <option value="vs">⚖ This vs that choice</option>
+                                    <option value="social">👥 Social plan with people</option>
+                                    <option value="selfcare">🌿 Self-care / rest / recharge</option>
+                                    <option value="experience">✨ Experience / memory</option>
+                                    <option value="other">💭 Something else</option>
+                                </select>
+                                <label class="buy-field-label" for="life-title" style="margin-top:12px;">Describe it</label>
+                                <input type="text" id="life-title" placeholder="e.g. Dinner at that new cafe, movie tickets, weekend trip to…" maxlength="160" autocomplete="off">
+                                <div class="buy-price-row" style="margin-top:12px;">
+                                    <div>
+                                        <label class="buy-field-label" for="life-price">Cost (₹)</label>
+                                        <input type="number" id="life-price" placeholder="Amount" min="0" step="1">
+                                    </div>
+                                    <div>
+                                        <label class="buy-field-label" for="life-alt">Cheaper alternative? (optional)</label>
+                                        <input type="text" id="life-alt" placeholder="e.g. cook at home ₹80" maxlength="120" autocomplete="off">
+                                    </div>
+                                </div>
+                                <p class="buy-hint">For movies, trips, dinner, ice cream, ordering out, this-vs-that… Money matters, but so do joy, rest, and memories. Be honest — I'll balance both.</p>
+                            </div>
 
-                        <button type="button" id="btn-buy-analyze" class="btn-primary buy-analyze-btn">🧠 Analyze — Should I buy?</button>
+                            <h3 class="section-title">Heart + head check</h3>
+                            <div id="life-questions" class="buy-questions"></div>
+                            <button type="button" id="btn-life-analyze" class="btn-primary buy-analyze-btn">💛 Analyze — Should I do this?</button>
+                        </div>
                     </div>
 
                     <div id="buy-report" class="buy-report hidden"></div>

@@ -1336,25 +1336,35 @@
 }
 .study-timer-controls { display: flex; gap: var(--space-md); }
 
-/* ===== SHOULD I BUY THIS ===== */
-.buy-finance-strip {
-    display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px;
-    margin-bottom: var(--space-md); scrollbar-width: none;
-}
-.buy-finance-strip::-webkit-scrollbar { display: none; }
-.buy-fin-chip {
-    flex: 0 0 auto; min-width: 108px;
+/* ===== SHOULD I? (Product + Daily Life) ===== */
+.buy-mode-tabs {
+    display: flex;
     background: var(--bg-glass);
     border: 1px solid var(--bg-glass-border);
     border-radius: var(--radius-sm);
-    padding: 10px 12px;
-    display: flex; flex-direction: column; gap: 2px;
+    padding: 3px;
+    margin-bottom: var(--space-md);
+    gap: 3px;
 }
-.buy-fin-label { font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px; }
-.buy-fin-value { font-family: var(--font-display); font-weight: 700; font-size: 0.95rem; }
-.buy-fin-ok .buy-fin-value { color: var(--success); }
-.buy-fin-warn .buy-fin-value { color: var(--warning); }
-.buy-fin-bad .buy-fin-value { color: var(--danger); }
+.buy-mode-tab {
+    flex: 1;
+    padding: 10px 12px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    border-radius: 8px;
+    color: var(--text-muted);
+    transition: all var(--duration-fast);
+}
+.buy-mode-tab.active {
+    background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+    color: white;
+    box-shadow: 0 0 12px var(--primary-glow);
+}
+.buy-mode-panel.hidden { display: none; }
+.buy-mode-panel select {
+    width: 100%;
+    margin-bottom: 4px;
+}
 
 .buy-field-label {
     display: block; font-size: 0.72rem; color: var(--text-muted);
