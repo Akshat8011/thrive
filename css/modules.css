@@ -1624,6 +1624,7 @@
 
 @media (max-width: 520px) {
     .buy-proscons { grid-template-columns: 1fr; }
+    .buy-buyer-grid { grid-template-columns: 1fr; }
     .buy-price-row { grid-template-columns: 1fr; }
     .buy-url-row { flex-direction: column; }
     .buy-meter-wrap { flex-direction: column; align-items: stretch; }
