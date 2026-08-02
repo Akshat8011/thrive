@@ -1543,6 +1543,10 @@
 }
 .buy-condition-item:last-child { border-bottom: none; }
 
+.buy-history-intro {
+    font-size: 0.78rem; color: var(--text-muted); line-height: 1.4;
+    margin: -4px 0 10px;
+}
 .buy-history { display: flex; flex-direction: column; gap: 8px; padding-bottom: 24px; }
 .buy-history-item {
     background: var(--bg-glass); border: 1px solid var(--bg-glass-border);
