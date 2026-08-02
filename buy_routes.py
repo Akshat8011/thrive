@@ -131,41 +131,413 @@ def _best_price_from_text(text):
     return top[0]
 
 
-def _parse_rating(html):
-    for pat in [
-        r'"ratingValue"\s*:\s*"?([\d.]+)"?',
-        r'"aggregateRating"[^}]*"ratingValue"\s*:\s*"?([\d.]+)"?',
-        r'([\d.]+)\s*out of\s*5',
-        r'([\d.]+)\s*/\s*5',
-        r'aria-label=["\']([\d.]+)\s*out of\s*5',
-        r'Rating:\s*([\d.]+)',
-    ]:
-        m = re.search(pat, html, re.I)
+def _parse_count(raw):
+    """Parse 1,234 / 2,46,421 / 9.4K style counts."""
+    if raw is None:
+        return None
+    s = str(raw).strip().replace(',', '')
+    m = re.match(r'^([\d.]+)\s*([kmb])?$', s, re.I)
+    if not m:
+        digits = re.sub(r'[^\d]', '', s)
+        return int(digits) if digits else None
+    try:
+        val = float(m.group(1))
+    except ValueError:
+        return None
+    suf = (m.group(2) or '').lower()
+    if suf == 'k':
+        val *= 1000
+    elif suf == 'm':
+        val *= 1000000
+    elif suf == 'b':
+        val *= 1000000000
+    return int(round(val))
+
+
+def _strip_related_noise(text):
+    """Remove sponsored/related carousels that leak other products' ratings."""
+    if not text:
+        return ''
+    cut_markers = [
+        r'Products related to this item',
+        r'Customers who viewed this item also viewed',
+        r'Customers who bought this item also bought',
+        r'Compare with similar items',
+        r'Sponsored products related to this item',
+        r'4 stars and above',
+        r'Inspired by your browsing history',
+        r'What other items do customers buy after viewing',
+    ]
+    cleaned = text
+    for marker in cut_markers:
+        cleaned = re.sub(marker + r'[\s\S]{0,12000}?(?=## |\Z)', ' ', cleaned, flags=re.I)
+    # Drop markdown links that point at a different product-reviews ASIN block's star text is handled later
+    return cleaned
+
+
+def _extract_rating_bundle(text, asin=None):
+    """
+    Extract THIS listing's rating + review/rating count with confidence.
+    Avoids first-match traps from related/sponsored products.
+    """
+    if not text:
+        return {'rating': None, 'review_count': None, 'confidence': 0, 'source': None, 'star_breakdown': None}
+
+    asin = (asin or '').upper()
+    candidates = []
+
+    def add(rating, count, confidence, source, breakdown=None):
+        try:
+            rating = float(rating) if rating is not None else None
+        except (TypeError, ValueError):
+            rating = None
+        count = _parse_count(count) if count is not None else None
+        if rating is not None and not (0 < rating <= 5):
+            return
+        if rating is None and count is None:
+            return
+        candidates.append({
+            'rating': rating,
+            'review_count': count,
+            'confidence': confidence,
+            'source': source,
+            'star_breakdown': breakdown,
+        })
+
+    # --- Highest confidence: Amazon Customer Reviews table / global ratings block ---
+    m = re.search(
+        r'Customer Reviews\s*\|\s*\[([\d.]+)\s*_([\d.]+) out of 5 stars_\][^\[]{0,160}\[\(([\d,]+)\)\]',
+        text, re.I
+    )
+    if m:
+        add(m.group(1), m.group(3), 98, 'amazon-reviews-table')
+
+    m = re.search(
+        r'([\d.]+)\s*out of\s*5\s*stars?,\s*([\d,]+)\s*ratings',
+        text, re.I
+    )
+    if m:
+        add(m.group(1), m.group(2), 96, 'amazon-stars-ratings-pair')
+
+    m = re.search(
+        r'##\s*Customer reviews\s*_?([\d.]+)\s*out of\s*5\s*stars?_?\s*([\d.]+)\s*out of\s*5\s*([\d,]+)\s*global ratings',
+        text, re.I
+    )
+    if m:
+        add(m.group(1), m.group(3), 97, 'amazon-customer-reviews-heading')
+
+    m = re.search(
+        r'_([\d.]+)\s*out of\s*5\s*stars_\s*([\d.]+)\s*out of\s*5\s*([\d,]+)\s*global ratings',
+        text, re.I
+    )
+    if m:
+        add(m.group(1), m.group(3), 97, 'amazon-global-ratings')
+
+    # ASIN-scoped histogram / review portal (ties count to THIS asin)
+    if asin:
+        m = re.search(
+            rf'([\d.]+)\s*out of\s*5[\s\S]{{0,240}}?([\d,]+)\s*global ratings[\s\S]{{0,200}}?'
+            rf'(?:portal/customer-reviews|product-reviews)/{re.escape(asin)}',
+            text, re.I
+        )
         if m:
-            try:
-                val = float(m.group(1))
-                if 0 < val <= 5:
-                    return val
-            except ValueError:
-                pass
-    return None
+            add(m.group(1), m.group(2), 95, 'amazon-asin-scoped-block')
+
+        # HTML hooks often present in direct HTML
+        m = re.search(
+            rf'["\']?asin["\']?\s*[:=]\s*["\']{re.escape(asin)}["\'][\s\S]{{0,400}}?'
+            rf'"ratingValue"\s*:\s*"?([\d.]+)"?[\s\S]{{0,200}}?"reviewCount"\s*:\s*"?([\d,]+)"?',
+            text, re.I
+        )
+        if m:
+            add(m.group(1), m.group(2), 94, 'json-asin-aggregate')
+
+        m = re.search(
+            rf'data-asin=["\']{re.escape(asin)}["\'][\s\S]{{0,800}}?'
+            rf'aria-label=["\']([\d.]+)\s*out of\s*5[\s\S]{{0,400}}?'
+            rf'(?:acrCustomerReviewText|totalReviewCount)[^>]*>\s*([\d,]+)',
+            text, re.I
+        )
+        if m:
+            add(m.group(1), m.group(2), 93, 'html-asin-acr')
+
+    # data-hook HTML (direct Amazon HTML)
+    m = re.search(
+        r'data-hook=["\']rating-out-of-text["\'][^>]*>\s*([\d.]+)\s*out of\s*5',
+        text, re.I
+    )
+    m2 = re.search(
+        r'(?:id=["\']acrCustomerReviewText["\']|data-hook=["\']total-review-count["\'])[^>]*>\s*([\d,]+)',
+        text, re.I
+    )
+    if m and m2:
+        add(m.group(1), m2.group(1), 92, 'amazon-data-hook-pair')
+
+    # Flipkart: [4.6 | 2,46,421]
+    m = re.search(r'\[(\d(?:\.\d)?)\s*\|\s*([\d,]+)\]', text)
+    if m:
+        add(m.group(1), m.group(2), 95, 'flipkart-rating-pipe')
+    m = re.search(r'([\d.]+)\s*★\s*\(?\s*([\d,]+)\s*\)?', text)
+    if m:
+        add(m.group(1), m.group(2), 90, 'flipkart-star-count')
+    m = re.search(r'([\d.]+)\s*(?:\||·)\s*([\d,]+)\s*ratings?', text, re.I)
+    if m:
+        add(m.group(1), m.group(2), 88, 'flipkart-ratings-line')
+
+    # JSON-LD Product aggregate — only if a single clear Product or ASIN matches
+    products = _extract_json_ld(text) if '<script' in text.lower() else []
+    for p in products:
+        agg = p.get('aggregateRating') if isinstance(p, dict) else None
+        if not isinstance(agg, dict):
+            continue
+        sku = str(p.get('sku') or p.get('productID') or p.get('@id') or '')
+        conf = 70
+        if asin and asin in sku.upper():
+            conf = 93
+        elif asin and asin in text[max(0, text.find(str(agg)[:20]) - 200):].upper():
+            conf = 80
+        add(agg.get('ratingValue'), agg.get('reviewCount') or agg.get('ratingCount'), conf, 'json-ld-product')
+
+    # Star breakdown near Customer reviews (Amazon jina markdown packs % like 51%20%11%4%14%)
+    breakdown = None
+    hist_block = ''
+    mhist = re.search(r'##\s*Customer reviews([\s\S]{0,1600})', text, re.I)
+    if mhist:
+        hist_block = mhist.group(1)
+    pcts = re.findall(
+        r'1 star\s*5 star\s*4 star\s*3 star\s*2 star\s*1 star\s*1 star\s*(\d{1,3})%(\d{1,3})%(\d{1,3})%(\d{1,3})%(\d{1,3})%',
+        hist_block, re.I
+    )
+    if not pcts:
+        # fallback: first five percentages after "5 star 4 star 3 star 2 star 1 star"
+        m = re.search(
+            r'5 star\s*4 star\s*3 star\s*2 star\s*1 star\s*5 star\s*(\d{1,3})%(\d{1,3})%(\d{1,3})%(\d{1,3})%(\d{1,3})%',
+            hist_block, re.I
+        )
+        if m:
+            pcts = [m.groups()]
+    if pcts:
+        try:
+            p = pcts[0]
+            breakdown = {'5': int(p[0]), '4': int(p[1]), '3': int(p[2]), '2': int(p[3]), '1': int(p[4])}
+        except (ValueError, IndexError):
+            breakdown = None
+
+    # Low-confidence fallback ONLY on noise-stripped text, requiring rating+count nearby
+    safe = _strip_related_noise(text)
+    # Remove other-ASIN product-reviews star chips: [_4.3 out of 5 stars_ 5,123](…/product-reviews/OTHER…)
+    if asin:
+        safe = re.sub(
+            rf'_[\d.]+\s*out of\s*5 stars_[\s\S]{{0,40}}?product-reviews/(?!{re.escape(asin)})[A-Z0-9]{{10}}',
+            ' ', safe, flags=re.I
+        )
+    m = re.search(
+        r'([\d.]+)\s*out of\s*5(?:\s*stars?)?[^\n]{0,40}?([\d,]+)\s*(?:global\s+)?(?:ratings?|reviews?|customer reviews?)',
+        safe, re.I
+    )
+    if m:
+        add(m.group(1), m.group(2), 60, 'fallback-paired-out-of-five')
+
+    if not candidates:
+        return {'rating': None, 'review_count': None, 'confidence': 0, 'source': None, 'star_breakdown': breakdown}
+
+    # Prefer highest confidence; tie-break by having both fields, then larger review count (real listing aggregates)
+    candidates.sort(
+        key=lambda c: (
+            c['confidence'],
+            1 if c['rating'] is not None else 0,
+            1 if c['review_count'] is not None else 0,
+            c['review_count'] or 0,
+        ),
+        reverse=True
+    )
+    best = candidates[0]
+    # Reject weak lone ratings with no count — those are usually related-product chips
+    if best['confidence'] < 70 and (best['rating'] is None or best['review_count'] is None):
+        return {'rating': None, 'review_count': None, 'confidence': 0, 'source': None, 'star_breakdown': breakdown}
+    if breakdown and not best.get('star_breakdown'):
+        best['star_breakdown'] = breakdown
+    return best
+
+
+def _parse_rating(html):
+    """Back-compat wrapper."""
+    return _extract_rating_bundle(html).get('rating')
 
 
 def _parse_review_count(html):
-    for pat in [
-        r'"reviewCount"\s*:\s*"?([\d,]+)"?',
-        r'"ratingCount"\s*:\s*"?([\d,]+)"?',
-        r'([\d,]+)\s+ratings?',
-        r'([\d,]+)\s+reviews?',
-        r'([\d,]+)\s+customer reviews?',
-    ]:
-        m = re.search(pat, html, re.I)
-        if m:
-            try:
-                return int(m.group(1).replace(',', ''))
-            except ValueError:
-                pass
-    return None
+    """Back-compat wrapper."""
+    return _extract_rating_bundle(html).get('review_count')
+
+
+def _extract_buyer_insights(text, asin=None):
+    """Pull buyer pros/cons + sample reviews from Customers say / aspect stats / top reviews."""
+    empty = {
+        'customers_say': '',
+        'aspects': [],
+        'pros': [],
+        'cons': [],
+        'sample_reviews': [],
+        'reviews_analyzed': 0,
+        'summary': 'No buyer-review themes found on the page.',
+    }
+    if not text:
+        return empty
+
+    customers_say = ''
+    m = re.search(
+        r'(?:###\s*)?Customers say\s+(.{80,900}?)(?:\n\s*AI Generated|\n\s*####|\n\s*Quality\(|\n\s*\d[\d,]*\s+customers mention)',
+        text, re.I | re.S
+    )
+    if m:
+        customers_say = re.sub(r'\s+', ' ', m.group(1)).strip()
+
+    aspects = []
+    seen = set()
+    for m in re.finditer(
+        r'([\d,]+)\s+customers mention\s+"?([^"\n,]{2,60}?)"?\s*,?\s*([\d,]+)\s+positive,?\s*([\d,]+)\s+negative',
+        text, re.I
+    ):
+        name = m.group(2).strip().title()
+        key = name.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        total = _parse_count(m.group(1)) or 0
+        pos = _parse_count(m.group(3)) or 0
+        neg = _parse_count(m.group(4)) or 0
+        if total <= 0:
+            continue
+        aspects.append({
+            'name': name,
+            'total': total,
+            'positive': pos,
+            'negative': neg,
+            'positive_pct': round(100 * pos / total),
+            'negative_pct': round(100 * neg / total),
+        })
+    aspects.sort(key=lambda a: a['total'], reverse=True)
+
+    pros, cons = [], []
+    for a in aspects:
+        entry = {
+            'text': a['name'],
+            'count': a['total'],
+            'positive': a['positive'],
+            'negative': a['negative'],
+            'detail': f"{a['positive']:,} positive / {a['negative']:,} negative mentions",
+        }
+        if a['positive_pct'] >= 70:
+            pros.append(entry)
+        if a['negative_pct'] >= 30 or a['positive_pct'] < 55:
+            cons.append({
+                **entry,
+                'count': a['negative'],
+                'detail': f"{a['negative']:,} of {a['total']:,} mention issues with {a['name'].lower()}",
+            })
+
+    # Sample top reviews (dedupe by title+stars)
+    samples = []
+    seen_rev = set()
+    review_region = text
+    mreg = re.search(r'Top reviews(?: from [^\n]+)?([\s\S]{0,50000})', text, re.I)
+    if mreg:
+        review_region = mreg.group(1)
+    headers = list(re.finditer(
+        r'_([1-5]) out of 5 stars_\s*#####\s*\[([^\]]{2,120})\]',
+        review_region, re.I
+    ))
+    for idx, m in enumerate(headers):
+        stars = int(m.group(1))
+        title = re.sub(r'\s+', ' ', m.group(2)).strip()
+        start = m.end()
+        end = headers[idx + 1].start() if idx + 1 < len(headers) else min(len(review_region), start + 2500)
+        chunk = review_region[start:end]
+        # Flatten markdown first so "Verified Purchase" isn't buried inside link URLs
+        body = re.sub(r'!\[.*?\]\([^)]+\)', ' ', chunk)
+        body = re.sub(r'\[([^\]]*)\]\([^)]+\)', r'\1', body)
+        body = re.sub(r'https?://\S+', ' ', body)
+        body = re.sub(r'Brief content visible.*?brief content\.', ' ', body, flags=re.I | re.S)
+        body = re.sub(r'Read more(?: Read less)?', ' ', body, flags=re.I)
+        body = re.sub(
+            r'(Helpful|Sending feedback|Thank you for your feedback|Report|Sorry, we failed|Sorry, We failed).*$',
+            '', body, flags=re.I | re.S
+        )
+        vm = re.search(
+            r'(?:Verified Purchase|Reviewed in [A-Za-z ]+ on [^\n]{0,40})\s*(.*)$',
+            body, re.I | re.S
+        )
+        if vm:
+            body = vm.group(1)
+        # Colour / variant chips sometimes precede the text
+        body = re.sub(r'^(?:Colour|Color|Size|Pattern|Style)\s*:\s*[^\n.]{1,40}\s*', '', body, flags=re.I)
+        body = re.sub(r'\s+', ' ', body).strip(' -•\n\t')
+        key = (stars, title.lower())
+        if key in seen_rev or len(body) < 30:
+            continue
+        seen_rev.add(key)
+        samples.append({'stars': stars, 'title': title[:120], 'body': body[:340]})
+        if len(samples) >= 10:
+            break
+
+    # Fallback keyword mining from sample review text if aspects missing
+    if not pros and not cons and samples:
+        blob = ' '.join(s['title'] + ' ' + s['body'] for s in samples).lower()
+        pro_kw = [
+            ('battery', 'Battery life praised'), ('display', 'Display quality liked'),
+            ('value', 'Value for money'), ('quality', 'Build quality'),
+            ('comfort', 'Comfortable to use/wear'), ('feature', 'Feature set'),
+            ('sound', 'Sound quality'), ('design', 'Design / looks'),
+        ]
+        con_kw = [
+            ('drain', 'Battery drain complaints'), ('scratch', 'Scratches / finish issues'),
+            ('lag', 'Lag / performance issues'), ('defect', 'Defects reported'),
+            ('fake', 'Authenticity concerns'), ('return', 'Returns / replacements'),
+            ('heat', 'Heating issues'), ("don't buy", 'Strong buy warnings'),
+            ('waste', 'Waste-of-money mentions'),
+        ]
+        for key, label in pro_kw:
+            c = blob.count(key)
+            if c:
+                pros.append({'text': label, 'count': c, 'positive': c, 'negative': 0, 'detail': f'Seen in {c} sample review snippets'})
+        for key, label in con_kw:
+            c = blob.count(key)
+            if c:
+                cons.append({'text': label, 'count': c, 'positive': 0, 'negative': c, 'detail': f'Seen in {c} sample review snippets'})
+
+    reviews_analyzed = len(samples) + sum(1 for _ in aspects)
+    if customers_say and aspects:
+        summary = (
+            f'Analyzed Amazon buyer themes across {aspects[0]["total"]:,}+ aspect mentions '
+            f'and {len(samples)} top reviews.'
+        )
+    elif customers_say:
+        summary = 'Pulled Amazon “Customers say” summary and top reviews.'
+    elif samples:
+        summary = f'Read {len(samples)} top customer reviews from the listing page.'
+    elif aspects:
+        summary = f'Found {len(aspects)} buyer aspect themes with mention counts.'
+    else:
+        summary = empty['summary']
+
+    # Sentiment-ish score from aspect polarity
+    pos_sum = sum(a['positive'] for a in aspects) or sum(1 for s in samples if s['stars'] >= 4)
+    neg_sum = sum(a['negative'] for a in aspects) or sum(1 for s in samples if s['stars'] <= 2)
+    total = pos_sum + neg_sum
+    score = round(100 * pos_sum / total) if total else 55
+
+    return {
+        'customers_say': customers_say,
+        'aspects': aspects[:12],
+        'pros': pros[:8],
+        'cons': cons[:8],
+        'sample_reviews': samples,
+        'reviews_analyzed': reviews_analyzed,
+        'summary': summary,
+        'score': score,
+        'positive_hits': pos_sum,
+        'negative_hits': neg_sum,
+    }
 
 
 def _extract_json_ld(html):
@@ -197,10 +569,16 @@ def _extract_json_ld(html):
     return products
 
 
-def _from_json_ld(products):
+def _from_json_ld(products, asin=None):
     if not products:
         return {}
     p = products[0]
+    if asin:
+        for cand in products:
+            blob = json.dumps(cand, ensure_ascii=False).upper()
+            if asin.upper() in blob:
+                p = cand
+                break
     out = {
         'title': p.get('name') or '',
         'description': p.get('description') or '',
@@ -424,8 +802,8 @@ def _fetch_jina(url):
                 image = img_m.group(1)
             return {
                 'ok': True, 'source': 'jina', 'final_url': url,
-                'text': text[:120000], 'title': title, 'image': image,
-                'html': text[:120000],
+                'text': text[:220000], 'title': title, 'image': image,
+                'html': text[:220000],
             }
         except Exception:
             continue
@@ -466,19 +844,19 @@ def _merge_product(url, chunks):
     parsed = urlparse(url)
     host = (parsed.netloc or '').replace('www.', '')
     url_title = _title_from_url(url)
+    asin = _amazon_asin(url)
 
     title = ''
     description = ''
     image = ''
     price = None
-    rating = None
-    review_count = None
     brand = ''
     availability = ''
     currency = 'INR'
     final_url = url
     sources_used = []
     combined_text = ''
+    rating_candidates = []
 
     for ch in chunks:
         if not ch or not ch.get('ok'):
@@ -486,13 +864,14 @@ def _merge_product(url, chunks):
         sources_used.append(ch.get('source', '?'))
         if ch.get('final_url'):
             final_url = ch['final_url']
+            asin = asin or _amazon_asin(final_url)
 
         html = ch.get('html') or ch.get('text') or ''
-        combined_text += '\n' + html[:20000]
+        # Keep a large window — reviews live deep in Amazon pages
+        combined_text += '\n' + html[:180000]
 
-        # Structured json-ld when HTML present
         if html and '<script' in html.lower():
-            ld = _from_json_ld(_extract_json_ld(html))
+            ld = _from_json_ld(_extract_json_ld(html), asin=asin)
         else:
             ld = {}
 
@@ -513,12 +892,11 @@ def _merge_product(url, chunks):
         )
         cand_desc = unescape(re.sub(r'\s+', ' ', cand_desc)).strip()[:500]
         if cand_desc and len(cand_desc) > len(description):
-            # skip boilerplate privacy blurbs
             if 'conditions of use' not in cand_desc.lower():
                 description = cand_desc
 
         cand_img = ch.get('image') or ld.get('image') or _meta(html, 'og:image', 'twitter:image') or ''
-        if cand_img and not image:
+        if cand_img and not image and not str(cand_img).startswith('data:image'):
             image = cand_img
 
         if price is None:
@@ -528,10 +906,19 @@ def _merge_product(url, chunks):
         if price is None:
             price = _best_price_from_text(html)
 
-        if rating is None:
-            rating = ld.get('rating') or _parse_rating(html)
-        if review_count is None:
-            review_count = ld.get('review_count') or _parse_review_count(html)
+        # Per-source rating bundle (never trust bare first "X out of 5")
+        bundle = _extract_rating_bundle(html, asin=asin)
+        if bundle.get('confidence', 0) >= 60:
+            rating_candidates.append(bundle)
+        elif ld.get('rating') is not None and ld.get('review_count') is not None:
+            rating_candidates.append({
+                'rating': ld.get('rating'),
+                'review_count': ld.get('review_count'),
+                'confidence': 72,
+                'source': 'json-ld-merged',
+                'star_breakdown': None,
+            })
+
         if not brand:
             brand = ld.get('brand') or _meta(html, 'product:brand', 'og:brand') or ch.get('publisher') or ''
         if not availability:
@@ -539,17 +926,42 @@ def _merge_product(url, chunks):
         if ld.get('currency'):
             currency = ld['currency']
 
+    asin = _amazon_asin(final_url) or asin or _amazon_asin(url)
+
+    # Final rating pass on the full combined corpus (highest signal)
+    best_rating = _extract_rating_bundle(combined_text, asin=asin)
+    for cand in rating_candidates:
+        if cand.get('confidence', 0) > best_rating.get('confidence', 0):
+            best_rating = cand
+        elif cand.get('confidence', 0) == best_rating.get('confidence', 0):
+            # Prefer candidate that has both fields
+            if (cand.get('rating') is not None and cand.get('review_count') is not None) and \
+               (best_rating.get('rating') is None or best_rating.get('review_count') is None):
+                best_rating = cand
+
+    rating = best_rating.get('rating')
+    review_count = best_rating.get('review_count')
+    star_breakdown = best_rating.get('star_breakdown')
+
+    buyer = _extract_buyer_insights(combined_text, asin=asin)
+    page_sent = _sentiment_from_text(combined_text[:12000] + ' ' + title + ' ' + description)
+    # Prefer buyer-aspect polarity when we actually mined reviews
+    if buyer.get('aspects') or buyer.get('sample_reviews'):
+        sentiment = {
+            'score': buyer.get('score', page_sent['score']),
+            'positive_hits': buyer.get('positive_hits', 0),
+            'negative_hits': buyer.get('negative_hits', 0),
+            'summary': buyer.get('summary') or page_sent.get('summary'),
+        }
+    else:
+        sentiment = page_sent
+
     if _is_junk_title(title):
         title = url_title or f'Product on {host or "link"}'
     if not description:
         description = f'Product link from {host}. Details filled from best available source.'
-
-    # Amazon ASIN annotate
-    asin = _amazon_asin(final_url) or _amazon_asin(url)
     if asin and not brand:
         brand = 'Amazon listing'
-
-    sentiment = _sentiment_from_text(combined_text[:12000] + ' ' + title + ' ' + description)
 
     note_parts = []
     if sources_used:
@@ -560,6 +972,18 @@ def _merge_product(url, chunks):
         note_parts.append('Price not detected — enter it manually.')
     else:
         note_parts.append('You can override the price before analysis.')
+    if rating is not None and review_count is not None:
+        note_parts.append(
+            f'Listing rating {rating:.1f}★ from {review_count:,} ratings'
+            + (f' ({best_rating.get("source")})' if best_rating.get('source') else '')
+            + '.'
+        )
+    elif rating is None:
+        note_parts.append('Could not confidently read this listing’s rating (ignored related-product stars).')
+    if buyer.get('pros') or buyer.get('cons'):
+        note_parts.append(
+            f'Buyer themes: {len(buyer.get("pros") or [])} pros / {len(buyer.get("cons") or [])} cons mined from reviews.'
+        )
 
     return {
         'ok': True,
@@ -572,9 +996,13 @@ def _merge_product(url, chunks):
         'currency': currency,
         'rating': rating,
         'review_count': review_count,
+        'rating_source': best_rating.get('source'),
+        'rating_confidence': best_rating.get('confidence') or 0,
+        'star_breakdown': star_breakdown,
         'brand': brand or '',
         'availability': availability,
         'sentiment': sentiment,
+        'buyer_insights': buyer,
         'asin': asin,
         'sources': list(dict.fromkeys(sources_used)) or ['url-heuristic'],
         'partial': price is None or not sources_used or sources_used == ['url-heuristic'],

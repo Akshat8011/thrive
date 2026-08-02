@@ -2,7 +2,7 @@
    Network-first for JS/CSS/HTML to ensure code updates reach mobile browsers immediately.
    Cache-first only for static assets (images, fonts, icons).
 */
-const CACHE_NAME = 'thrive-v19';
+const CACHE_NAME = 'thrive-v20';
 
 // Static assets that rarely change — cache-first is fine for these
 const STATIC_ASSETS = [

@@ -518,15 +518,53 @@ const BuyModule = (() => {
             a.quality_need === 'no' ? 'If any decent one works, hunt a cheaper pick.' : a.quality_need ? `Tier need: ${a.quality_need}.` : 'Not answered.',
             ({ yes: 80, maybe: 60, no: 45 }[a.quality_need] || 45), 0.9);
 
-        // Product signals
+        // Product signals (listing-accurate rating + mined buyer themes)
+        const buyer = product.buyer_insights || {};
+        const buyerPros = Array.isArray(buyer.pros) ? buyer.pros : [];
+        const buyerCons = Array.isArray(buyer.cons) ? buyer.cons : [];
+        const samples = Array.isArray(buyer.sample_reviews) ? buyer.sample_reviews : [];
+        const ratingConf = product.rating_confidence || 0;
+
         addParam(P, 'Product Signals', 'Price available', price > 0 ? 'pass' : 'fail', price > 0 ? `Analysis price ${fmt(price)}.` : 'No price.', price > 0 ? 90 : 5, 1.0);
-        addParam(P, 'Product Signals', 'Customer rating', rating == null ? 'info' : rating >= 4.2 ? 'pass' : rating >= 3.5 ? 'warn' : 'fail',
-            rating == null ? 'No rating found.' : `${rating.toFixed(1)} / 5.`, rating == null ? 50 : clamp((rating / 5) * 100), 1.2);
+        addParam(P, 'Product Signals', 'Customer rating (this listing)',
+            rating == null ? 'info' : rating >= 4.2 ? 'pass' : rating >= 3.5 ? 'warn' : 'fail',
+            rating == null
+                ? 'No confident listing rating (related-product stars ignored).'
+                : `${rating.toFixed(1)} / 5` + (reviews != null ? ` · ${Number(reviews).toLocaleString('en-IN')} ratings` : '') +
+                    (product.rating_source ? ` · via ${product.rating_source}` : '') +
+                    (ratingConf ? ` · confidence ${ratingConf}` : ''),
+            rating == null ? 50 : clamp((rating / 5) * 100), 1.4);
         addParam(P, 'Product Signals', 'Review volume', reviews == null ? 'info' : reviews >= 200 ? 'pass' : reviews >= 30 ? 'warn' : 'fail',
-            reviews == null ? 'Review count unknown.' : `${reviews.toLocaleString('en-IN')} reviews.`,
+            reviews == null ? 'Review count unknown.' : `${Number(reviews).toLocaleString('en-IN')} ratings/reviews on this listing.`,
             reviews == null ? 50 : clamp(Math.log10(reviews + 1) * 28), 1.0);
-        addParam(P, 'Product Signals', 'Page sentiment', sentiment >= 65 ? 'pass' : sentiment >= 45 ? 'warn' : 'fail',
-            (product.sentiment && product.sentiment.summary) || 'Sentiment unavailable.', sentiment, 0.9);
+        if (product.star_breakdown) {
+            const sb = product.star_breakdown;
+            const five = Number(sb['5'] || 0);
+            addParam(P, 'Product Signals', '5-star share',
+                five >= 55 ? 'pass' : five >= 40 ? 'warn' : 'fail',
+                `Star mix ≈ 5★ ${sb['5'] || 0}% · 4★ ${sb['4'] || 0}% · 3★ ${sb['3'] || 0}% · 2★ ${sb['2'] || 0}% · 1★ ${sb['1'] || 0}%.`,
+                clamp(five + Number(sb['4'] || 0) * 0.6), 0.9);
+        }
+        addParam(P, 'Product Signals', 'Buyer theme polarity',
+            sentiment >= 70 ? 'pass' : sentiment >= 50 ? 'warn' : 'fail',
+            (product.sentiment && product.sentiment.summary) || 'Buyer theme polarity unavailable.',
+            sentiment, 1.1);
+        addParam(P, 'Product Signals', 'Buyer pros mined',
+            buyerPros.length >= 3 ? 'pass' : buyerPros.length ? 'warn' : 'info',
+            buyerPros.length
+                ? buyerPros.slice(0, 4).map(p => `${p.text} (${Number(p.count || 0).toLocaleString('en-IN')})`).join(' · ')
+                : 'No counted buyer pros extracted.',
+            buyerPros.length ? clamp(55 + buyerPros.length * 8) : 45, 1.0);
+        addParam(P, 'Product Signals', 'Buyer cons mined',
+            buyerCons.length === 0 ? 'pass' : buyerCons.length <= 2 ? 'warn' : 'fail',
+            buyerCons.length
+                ? buyerCons.slice(0, 4).map(c => `${c.text} (${Number(c.count || 0).toLocaleString('en-IN')})`).join(' · ')
+                : 'No major counted cons surfaced.',
+            buyerCons.length === 0 ? 80 : clamp(70 - buyerCons.length * 10), 1.1);
+        addParam(P, 'Product Signals', 'Top reviews read',
+            samples.length >= 4 ? 'pass' : samples.length ? 'warn' : 'info',
+            samples.length ? `${samples.length} customer reviews parsed from the listing.` : 'No individual reviews parsed.',
+            samples.length ? clamp(40 + samples.length * 8) : 40, 0.8);
         addParam(P, 'Product Signals', 'Marketplace familiarity',
             /amazon\.|flipkart\.|myntra\.|croma\.|apple\.|samsung\./i.test(product.host || '') ? 'pass' : 'warn',
             `Host: ${product.host || 'unknown'}.`, /amazon\.|flipkart\.|myntra\.|croma\.|apple\.|samsung\./i.test(product.host || '') ? 80 : 50, 0.7);
@@ -864,7 +902,14 @@ const BuyModule = (() => {
         if (answers.can_afford === 'easy' && answers.money_source === 'saved_safe') pros.push('Funded from savings with buffer intact.');
         if (answers.cool_off === 'waited') pros.push('You already cooled off — desire survived time.');
         if (joy >= 4 && answers.life_beyond === 'yes') pros.push('You\'ve been strict — thoughtful joy has a place.');
-        if (product.rating && product.rating >= 4.2) pros.push(`Solid rating (${product.rating.toFixed(1)}★).`);
+        if (product.rating && product.rating >= 4.2) {
+            pros.push(`Solid listing rating (${product.rating.toFixed(1)}★` +
+                (product.review_count != null ? ` from ${Number(product.review_count).toLocaleString('en-IN')} ratings` : '') + ').');
+        }
+        const bi = product.buyer_insights || {};
+        (bi.pros || []).slice(0, 3).forEach(p => {
+            pros.push(`Buyers praise ${p.text.toLowerCase()} (${Number(p.count || 0).toLocaleString('en-IN')} mentions).`);
+        });
 
         if (answers.can_afford === 'no' || answers.can_afford === 'tight') cons.push('Money comfort is low for this price.');
         if (answers.money_source === 'borrow' || answers.debt_risk === 'yes') cons.push('Debt/borrow funding is unacceptable for this.');
@@ -877,6 +922,10 @@ const BuyModule = (() => {
         if (num(answers.waste_risk) >= 4 || answers.setup_skill === 'doubt') cons.push('High chance it stays underused.');
         if (answers.urgency_timing === 'need_now_night' || answers.urgency_timing === 'payday') cons.push('Cart timing is emotionally risky.');
         if (answers.opportunity_cost === 'bills' || answers.opportunity_cost === 'debt') cons.push('This competes with obligations.');
+        if (product.rating != null && product.rating < 3.8) cons.push(`Listing rating is soft (${product.rating.toFixed(1)}★).`);
+        (bi.cons || []).slice(0, 3).forEach(c => {
+            cons.push(`Buyers flag ${c.text.toLowerCase()} (${Number(c.count || 0).toLocaleString('en-IN')} complaints).`);
+        });
 
         const conditions = [];
         if (action.includes('WAIT') || action.includes('DO NOT') || action.includes('CONDITIONAL')) {
@@ -901,6 +950,13 @@ const BuyModule = (() => {
         const brother = [
             `Senior financial advisor read — judged from your questionnaire + product signals only (Financial Ledger is separate on purpose).`,
             `Ticket: ${fmt(price)}. Funding: ${answers.money_source || 'unspecified'}. Stress if paid today: ${answers.can_afford || 'unspecified'}. Necessity ${nec}/5 · joy ${joy}/5.`,
+            product.rating != null
+                ? `Marketplace signal for THIS listing: ${product.rating.toFixed(1)}★` +
+                    (product.review_count != null ? ` across ${Number(product.review_count).toLocaleString('en-IN')} ratings` : '') +
+                    ((bi.pros || []).length || (bi.cons || []).length
+                        ? ` · buyer themes mined: ${(bi.pros || []).length} pros / ${(bi.cons || []).length} cons.`
+                        : '.')
+                : `Marketplace rating could not be read confidently for this exact listing (related-product stars are ignored on purpose).`,
             costPerUseHint != null
                 ? `Rough cost-per-use (from your frequency + lifespan answers): ~${fmt(costPerUseHint)} per use. If that number feels silly for what you get, wait or downsize.`
                 : `I could not estimate cost-per-use cleanly — tighten frequency/lifespan answers next time.`,
@@ -998,6 +1054,89 @@ const BuyModule = (() => {
         return { pass: '✓', warn: '!', fail: '✕', info: '•' }[st] || '•';
     }
 
+    function renderBuyerInsightsCard(product) {
+        const bi = product && product.buyer_insights;
+        if (!bi) return null;
+        const pros = bi.pros || [];
+        const cons = bi.cons || [];
+        const samples = bi.sample_reviews || [];
+        const aspects = bi.aspects || [];
+        if (!pros.length && !cons.length && !samples.length && !bi.customers_say) return null;
+
+        const card = Utils.el('div', { className: 'glass-card buy-buyer-card' });
+        card.appendChild(Utils.el('h4', { className: 'card-title', textContent: 'What buyers actually say' }));
+
+        const ratingBits = [];
+        if (product.rating != null) ratingBits.push(`${Number(product.rating).toFixed(1)}★`);
+        if (product.review_count != null) ratingBits.push(`${Number(product.review_count).toLocaleString('en-IN')} ratings`);
+        if (product.rating_source) ratingBits.push(`source: ${product.rating_source}`);
+        if (ratingBits.length) {
+            card.appendChild(Utils.el('div', {
+                className: 'buy-buyer-rating',
+                textContent: 'This listing · ' + ratingBits.join(' · ')
+            }));
+        }
+        if (bi.customers_say) {
+            card.appendChild(Utils.el('p', { className: 'buy-buyer-say', textContent: bi.customers_say }));
+        }
+        if (bi.summary) {
+            card.appendChild(Utils.el('div', { className: 'buy-buyer-meta', textContent: bi.summary }));
+        }
+
+        if (pros.length || cons.length) {
+            const grid = Utils.el('div', { className: 'buy-buyer-grid' });
+            const proBox = Utils.el('div', { className: 'buy-buyer-col' });
+            proBox.appendChild(Utils.el('div', { className: 'buy-buyer-col-title', textContent: `Buyer pros (${pros.length})` }));
+            (pros.length ? pros : [{ text: 'None counted', count: 0, detail: '' }]).forEach(p => {
+                proBox.appendChild(Utils.el('div', { className: 'buy-buyer-chip pass' },
+                    Utils.el('strong', { textContent: p.text }),
+                    Utils.el('span', { textContent: p.count ? Number(p.count).toLocaleString('en-IN') : '—' }),
+                    Utils.el('small', { textContent: p.detail || '' })
+                ));
+            });
+            const conBox = Utils.el('div', { className: 'buy-buyer-col' });
+            conBox.appendChild(Utils.el('div', { className: 'buy-buyer-col-title', textContent: `Buyer cons (${cons.length})` }));
+            (cons.length ? cons : [{ text: 'None counted', count: 0, detail: '' }]).forEach(c => {
+                conBox.appendChild(Utils.el('div', { className: 'buy-buyer-chip fail' },
+                    Utils.el('strong', { textContent: c.text }),
+                    Utils.el('span', { textContent: c.count ? Number(c.count).toLocaleString('en-IN') : '—' }),
+                    Utils.el('small', { textContent: c.detail || '' })
+                ));
+            });
+            grid.appendChild(proBox);
+            grid.appendChild(conBox);
+            card.appendChild(grid);
+        }
+
+        if (aspects.length) {
+            const aspectWrap = Utils.el('div', { className: 'buy-aspect-list' });
+            aspectWrap.appendChild(Utils.el('div', { className: 'buy-buyer-col-title', textContent: 'Aspect mention counts' }));
+            aspects.slice(0, 8).forEach(a => {
+                aspectWrap.appendChild(Utils.el('div', { className: 'buy-aspect-row' },
+                    Utils.el('span', { textContent: a.name }),
+                    Utils.el('span', { textContent: `${Number(a.total || 0).toLocaleString('en-IN')} · ${a.positive_pct || 0}% pos / ${a.negative_pct || 0}% neg` })
+                ));
+            });
+            card.appendChild(aspectWrap);
+        }
+
+        if (samples.length) {
+            const rev = Utils.el('div', { className: 'buy-sample-reviews' });
+            rev.appendChild(Utils.el('div', {
+                className: 'buy-buyer-col-title',
+                textContent: `Sample customer reviews (${samples.length})`
+            }));
+            samples.slice(0, 6).forEach(s => {
+                rev.appendChild(Utils.el('div', { className: 'buy-sample-review' },
+                    Utils.el('div', { className: 'buy-sample-head', textContent: `${'★'.repeat(s.stars || 0)}${'☆'.repeat(Math.max(0, 5 - (s.stars || 0)))} · ${s.title || 'Review'}` }),
+                    Utils.el('p', { textContent: s.body || '' })
+                ));
+            });
+            card.appendChild(rev);
+        }
+        return card;
+    }
+
     function groupByCategory(parameters) {
         const map = {};
         parameters.forEach(p => {
@@ -1083,6 +1222,9 @@ const BuyModule = (() => {
             });
             root.appendChild(cond);
         }
+
+        const buyerCard = renderBuyerInsightsCard(subject);
+        if (buyerCard) root.appendChild(buyerCard);
 
         const pc = Utils.el('div', { className: 'buy-proscons' });
         const prosC = Utils.el('div', { className: 'glass-card buy-pros' });
@@ -1351,8 +1493,18 @@ const BuyModule = (() => {
             if (!out.description && other.description) out.description = other.description;
             if (!out.image && other.image) out.image = other.image;
             if (out.price == null && other.price != null) out.price = other.price;
-            if (out.rating == null && other.rating != null) out.rating = other.rating;
-            if (out.review_count == null && other.review_count != null) out.review_count = other.review_count;
+            // Never fill rating from a lower-confidence / empty source — wrong stars are worse than none
+            const outConf = out.rating_confidence || 0;
+            const otherConf = other.rating_confidence || 0;
+            if ((out.rating == null && other.rating != null && otherConf >= 60) ||
+                (other.rating != null && otherConf > outConf && otherConf >= 60)) {
+                out.rating = other.rating;
+                out.review_count = other.review_count;
+                out.rating_confidence = otherConf;
+                out.rating_source = other.rating_source;
+                out.star_breakdown = other.star_breakdown || out.star_breakdown;
+            }
+            if (!out.buyer_insights && other.buyer_insights) out.buyer_insights = other.buyer_insights;
             if (!out.brand && other.brand) out.brand = other.brand;
             out.sources = Array.from(new Set([...(out.sources || []), ...(other.sources || [])]));
         }
@@ -1411,10 +1563,18 @@ const BuyModule = (() => {
         info.appendChild(Utils.el('div', { className: 'buy-product-meta', textContent:
             `${product.host || ''}` +
             (product.price != null ? ` · detected ${fmt(product.price)}` : ' · price not detected') +
-            (product.rating != null ? ` · ${product.rating.toFixed(1)}★` : '')
+            (product.rating != null ? ` · ${product.rating.toFixed(1)}★` : '') +
+            (product.review_count != null ? ` · ${Number(product.review_count).toLocaleString('en-IN')} ratings` : '')
         }));
         if (product.sentiment && product.sentiment.summary) {
             info.appendChild(Utils.el('p', { className: 'buy-product-desc', textContent: product.sentiment.summary }));
+        }
+        const biPrev = product.buyer_insights || {};
+        if ((biPrev.pros || []).length || (biPrev.cons || []).length) {
+            info.appendChild(Utils.el('p', { className: 'buy-product-desc', textContent:
+                `Buyers: ${(biPrev.pros || []).slice(0, 3).map(p => `+${p.text}(${p.count})`).join(', ') || '—'}` +
+                ` · ${(biPrev.cons || []).slice(0, 3).map(c => `−${c.text}(${c.count})`).join(', ') || 'no major cons counted'}`
+            }));
         }
         if (product.note) {
             info.appendChild(Utils.el('p', { className: 'buy-product-desc', textContent: product.note }));
