@@ -13,136 +13,175 @@ const BuyModule = (() => {
     const PRODUCT_QUESTIONS = [
         { id: 'necessity', label: 'How necessary is this for you right now?', type: 'scale', min: 1, max: 5, hints: ['Pure want', 'Nice to have', 'Useful', 'Important', 'Critical need'] },
         { id: 'work_impact', label: 'Is work / study / daily function hurt without it?', type: 'scale', min: 1, max: 5, hints: ['Not at all', 'Slightly', 'Somewhat', 'Quite a bit', 'Severely'] },
-        { id: 'already_own', label: 'Do you already own something that does a similar job?', type: 'choice', options: [
-            { v: 'no', t: 'No alternative' }, { v: 'partial', t: 'Partial alternative' }, { v: 'yes', t: 'Yes, already have one' }
+        { id: 'already_own', label: 'Own something similar already — and what happens to it?', type: 'choice', options: [
+            { v: 'no', t: 'Nothing similar' }, { v: 'partial', t: 'Partial alternative' },
+            { v: 'replace', t: 'Have one — will replace/retire it' }, { v: 'keep_both', t: 'Have one — would keep both' }
         ]},
-        { id: 'usage_freq', label: 'How often will you actually use it?', type: 'choice', options: [
-            { v: 'daily', t: 'Daily' }, { v: 'weekly', t: 'Weekly' }, { v: 'monthly', t: 'Monthly' }, { v: 'rarely', t: 'Rarely / once' }
+        { id: 'usage_context', label: 'Where + how often will you mainly use it?', type: 'choice', options: [
+            { v: 'work_daily', t: 'Work/study · daily' }, { v: 'home_daily', t: 'Home · daily' },
+            { v: 'weekly', t: 'Weekly (any place)' }, { v: 'travel', t: 'Travel / occasional' },
+            { v: 'rarely', t: 'Rare / one-off' }, { v: 'social_image', t: 'Mostly social / looks' }
         ]},
         { id: 'lifespan', label: 'Expected useful life?', type: 'choice', options: [
             { v: 'years', t: '3+ years' }, { v: 'year', t: 'About a year' }, { v: 'months', t: 'A few months' }, { v: 'once', t: 'One-time use' }
         ]},
-        { id: 'urgency', label: 'Do you need it immediately?', type: 'choice', options: [
-            { v: 'now', t: 'Yes, now' }, { v: 'soon', t: 'Within a month' }, { v: 'later', t: 'Can wait 3+ months' }, { v: 'never', t: 'No real deadline' }
+        { id: 'urgency_timing', label: 'Urgency + when are you buying? (deadline × cart timing)', type: 'choice', options: [
+            { v: 'need_now_clear', t: 'Need now · clear-headed daytime' }, { v: 'need_now_night', t: 'Need now · late night cart' },
+            { v: 'soon_planned', t: 'Within a month · planned' }, { v: 'payday', t: 'Mostly because payday/sale hit' },
+            { v: 'can_wait', t: 'Can wait 3+ months' }, { v: 'no_deadline', t: 'No real deadline' }
         ]},
         { id: 'impulse', label: 'How impulsive is this urge?', type: 'scale', min: 1, max: 5, hints: ['Fully planned', 'Mostly planned', 'Mixed', 'Mostly impulse', 'Pure FOMO'] },
-        { id: 'researched', label: 'Have you compared alternatives / prices?', type: 'choice', options: [
-            { v: 'deep', t: 'Deep research' }, { v: 'some', t: 'Some comparison' }, { v: 'none', t: 'No, just this link' }
+        { id: 'research_influence', label: 'Research depth + what pulled you to THIS listing?', type: 'choice', options: [
+            { v: 'deep_own', t: 'Deep research · my own shortlist' }, { v: 'some_own', t: 'Some compare · my choice' },
+            { v: 'friend', t: 'Friend/family hype' }, { v: 'influencer', t: 'Influencer / ad pull' },
+            { v: 'sale_only', t: 'Mostly sale countdown' }, { v: 'none', t: 'No compare · just this link' }
         ]},
-        { id: 'value_add', label: 'What primary value does it add?', type: 'choice', options: [
+        { id: 'value_add', label: 'Primary value this adds?', type: 'choice', options: [
             { v: 'career', t: 'Career / skills' }, { v: 'health', t: 'Health' }, { v: 'time', t: 'Saves time' },
             { v: 'joy', t: 'Joy / comfort' }, { v: 'status', t: 'Status / looks' }, { v: 'replace', t: 'Replaces broken item' }
         ]},
         { id: 'quality_need', label: 'Do you specifically need THIS quality/brand tier?', type: 'choice', options: [
             { v: 'yes', t: 'Yes, cheaper ones fail me' }, { v: 'maybe', t: 'Maybe mid-range is fine' }, { v: 'no', t: 'Any decent one works' }
         ]},
-        { id: 'can_afford', label: 'Can you pay for this without stress or borrowing?', type: 'choice', options: [
+        { id: 'money_source', label: 'Paying from what — and still keep emergency basics?', type: 'choice', options: [
+            { v: 'saved_safe', t: 'Saved money · buffer stays' }, { v: 'saved_thin', t: 'Saved money · buffer gets thin' },
+            { v: 'salary_planned', t: 'Upcoming salary · already planned' }, { v: 'stretch', t: 'Would stretch / juggle' },
+            { v: 'borrow', t: 'Borrow / credit / owe someone' }
+        ]},
+        { id: 'can_afford', label: 'Stress level if you pay today?', type: 'choice', options: [
             { v: 'easy', t: 'Easily, no stress' }, { v: 'ok', t: 'Yes, but I\'ll feel it' }, { v: 'tight', t: 'It would stretch me' }, { v: 'no', t: 'Not really / would borrow' }
+        ]},
+        { id: 'opportunity_cost', label: 'If you skip this, what does the money protect?', type: 'choice', options: [
+            { v: 'nothing', t: 'Nothing urgent waiting' }, { v: 'goal', t: 'A goal / trip / exam need' },
+            { v: 'bills', t: 'Bills / family / essentials' }, { v: 'debt', t: 'Debt payoff' }, { v: 'invest', t: 'Savings / invest habit' }
         ]},
         { id: 'save_first', label: 'Could you wait and save for it?', type: 'choice', options: [
             { v: 'no', t: 'Must buy now' }, { v: 'maybe', t: 'Could wait a bit' }, { v: 'yes', t: 'Yes, I can save' }
         ]},
-        { id: 'recent_buys', label: 'How many non-essential buys in the last 2 weeks?', type: 'choice', options: [
+        { id: 'cool_off', label: 'Cooling-off: wait 24–48h (or already waited)?', type: 'choice', options: [
+            { v: 'waited', t: 'Already waited days+' }, { v: 'can', t: 'I can wait 24–48h' }, { v: 'wont', t: 'Won\'t wait' }
+        ]},
+        { id: 'recent_buys', label: 'Non-essential buys in the last 2 weeks?', type: 'choice', options: [
             { v: '0', t: 'None' }, { v: '1', t: 'One' }, { v: '2', t: 'Two–three' }, { v: 'many', t: 'A streak of them' }
         ]},
-        { id: 'debt_risk', label: 'Would this create debt or delay paying someone back?', type: 'choice', options: [
+        { id: 'debt_risk', label: 'Debt impact?', type: 'choice', options: [
             { v: 'no', t: 'No debt impact' }, { v: 'delay', t: 'Delays payoff' }, { v: 'yes', t: 'Creates / worsens debt' }
         ]},
-        { id: 'regretted_similar', label: 'Have you regretted a similar purchase before?', type: 'choice', options: [
+        { id: 'regretted_similar', label: 'Regretted a similar purchase before?', type: 'choice', options: [
             { v: 'no', t: 'Never' }, { v: 'once', t: 'Once' }, { v: 'often', t: 'Often' }
         ]},
-        { id: 'shared_use', label: 'Will others also benefit?', type: 'choice', options: [
+        { id: 'shared_use', label: 'Who benefits?', type: 'choice', options: [
             { v: 'many', t: 'Family / team' }, { v: 'one', t: 'Just me' }, { v: 'gift', t: "It's a gift" }
         ]},
-        { id: 'maintenance', label: 'Ongoing cost (subs, parts, power, fees)?', type: 'choice', options: [
-            { v: 'none', t: 'None' }, { v: 'low', t: 'Low' }, { v: 'high', t: 'High / recurring' }
+        { id: 'tco_extras', label: 'True cost beyond sticker (subs / accessories / power / cases)?', type: 'choice', options: [
+            { v: 'none', t: 'Just the price' }, { v: 'low', t: 'Small extras likely' },
+            { v: 'high', t: 'Big extras / subscription' }, { v: 'unknown', t: 'Haven\'t checked' }
         ]},
-        { id: 'space', label: 'Do you have space / setup ready?', type: 'choice', options: [
-            { v: 'yes', t: 'Ready' }, { v: 'maybe', t: 'Need to arrange' }, { v: 'no', t: 'No space yet' }
+        { id: 'setup_skill', label: 'Space ready + can you set up & use it fully soon?', type: 'choice', options: [
+            { v: 'ready_week', t: 'Space ready · using within a week' }, { v: 'ready_later', t: 'Space ready · later / learning needed' },
+            { v: 'arrange', t: 'Need to arrange space first' }, { v: 'doubt', t: 'Might never fully use it' }
         ]},
-        { id: 'mood', label: 'Are you buying this to fix a mood / stress?', type: 'choice', options: [
-            { v: 'no', t: 'Clear-headed' }, { v: 'partly', t: 'Partly emotional' }, { v: 'yes', t: 'Retail therapy' }
+        { id: 'warranty_exit', label: 'Warranty/service nearby + exit if you hate it?', type: 'choice', options: [
+            { v: 'strong', t: 'Warranty + easy return/resale' }, { v: 'warranty', t: 'Warranty only' },
+            { v: 'return_only', t: 'Easy return, weak warranty' }, { v: 'stuck', t: 'Hard return · weak support' }, { v: 'unknown', t: 'Don\'t know yet' }
+        ]},
+        { id: 'mood', label: 'Buying to fix a mood / stress / unbox craving?', type: 'choice', options: [
+            { v: 'no', t: 'Clear-headed need' }, { v: 'partly', t: 'Partly emotional' }, { v: 'yes', t: 'Mostly mood / unbox therapy' }
         ]},
         { id: 'future_thanks', label: 'Will future-you thank present-you in 6 months?', type: 'scale', min: 1, max: 5, hints: ['Will regret', 'Doubtful', 'Neutral', 'Probably yes', 'Absolutely'] },
-        { id: 'joy_value', label: 'How much real joy / relief would owning this bring?', type: 'scale', min: 1, max: 5, hints: ['Almost none', 'A little', 'Some', 'A lot', 'Huge lift'] },
-        { id: 'life_beyond', label: 'Are you denying yourself too hard lately?', type: 'choice', options: [
-            { v: 'yes', t: 'Yes, I\'ve been very strict' }, { v: 'balanced', t: 'Mostly balanced' }, { v: 'no', t: 'No, I treat myself often' }
+        { id: 'joy_value', label: 'Real joy / relief from owning this?', type: 'scale', min: 1, max: 5, hints: ['Almost none', 'A little', 'Some', 'A lot', 'Huge lift'] },
+        { id: 'life_beyond', label: 'Self-denial vs treat balance lately?', type: 'choice', options: [
+            { v: 'yes', t: 'Been very strict' }, { v: 'balanced', t: 'Mostly balanced' }, { v: 'no', t: 'Treat myself often' }
         ]},
-        { id: 'secondhand', label: 'Did you check used / cheaper / borrow options?', type: 'choice', options: [
-            { v: 'yes', t: 'Checked — this is best' }, { v: 'no', t: 'Didn\'t check' }, { v: 'na', t: 'Not possible for this' }
+        { id: 'secondhand', label: 'Checked used / cheaper / borrow / repair-first?', type: 'choice', options: [
+            { v: 'yes', t: 'Checked — this wins' }, { v: 'no', t: 'Didn\'t check' }, { v: 'na', t: 'Not possible here' }
         ]},
-        { id: 'return_policy', label: 'Easy returns if it disappoints?', type: 'choice', options: [
-            { v: 'yes', t: 'Yes, easy returns' }, { v: 'maybe', t: 'Possible but annoying' }, { v: 'no', t: 'Hard / no returns' }
-        ]},
-        { id: 'goals_align', label: 'Does this align with your current goals?', type: 'scale', min: 1, max: 5, hints: ['Conflicts', 'Neutral', 'Somewhat', 'Supports', 'Directly advances'] },
-        { id: 'identity', label: 'Are you buying who you are — or who you wish you looked like?', type: 'choice', options: [
+        { id: 'goals_align', label: 'Aligns with your current goals?', type: 'scale', min: 1, max: 5, hints: ['Conflicts', 'Neutral', 'Somewhat', 'Supports', 'Directly advances'] },
+        { id: 'identity', label: 'Real need — or image / vibe purchase?', type: 'choice', options: [
             { v: 'real', t: 'Real need / real me' }, { v: 'mix', t: 'A bit of both' }, { v: 'image', t: 'Mostly image / vibe' }
         ]},
+        { id: 'focus_risk', label: 'Could this distract focus / become another half-used gadget?', type: 'choice', options: [
+            { v: 'no', t: 'No — clear use case' }, { v: 'maybe', t: 'Maybe a little' }, { v: 'yes', t: 'Yes, distraction risk' }
+        ]},
         { id: 'waste_risk', label: 'Chance it becomes unused clutter?', type: 'scale', min: 1, max: 5, hints: ['Almost none', 'Low', 'Maybe', 'Likely', 'Very likely'] },
-        { id: 'notes', label: 'Anything else I should know? (optional)', type: 'text', placeholder: 'Sale ends tonight, needed for a project, friend recommended, why this model…' }
+        { id: 'advisor_constraint', label: 'If a senior advisor gave you ONE rule for this buy, which fits?', type: 'choice', options: [
+            { v: 'must_utility', t: 'Only if it clearly earns/saves time or money' },
+            { v: 'must_buffer', t: 'Only if emergency buffer stays intact' },
+            { v: 'must_wait', t: 'Sleep on it 48h no matter what' },
+            { v: 'must_cheaper', t: 'Only after one cheaper option fails' },
+            { v: 'joy_ok', t: 'Affordable joy is allowed if I\'ll use it' }
+        ]},
+        { id: 'notes', label: 'Advisor notes — facts I should weigh (optional)', type: 'text', placeholder: 'Sale end date, project deadline, why this model, EMI plan, who recommended…' }
     ];
 
     const LIFE_QUESTIONS = [
         { id: 'why_now', label: 'Why this, why today?', type: 'choice', options: [
-            { v: 'joy', t: 'I want joy / fun' }, { v: 'rest', t: 'I need rest / comfort' },
+            { v: 'joy', t: 'Joy / fun' }, { v: 'rest', t: 'Rest / comfort' },
             { v: 'social', t: 'People / relationship' }, { v: 'memory', t: 'Make a memory' },
             { v: 'convenience', t: 'Convenience / tired' }, { v: 'fomo', t: 'FOMO / habit / boredom' }
         ]},
         { id: 'heart_pull', label: 'How strongly does your heart want this?', type: 'scale', min: 1, max: 5, hints: ['Meh', 'Mild want', 'Clear want', 'Really want', 'Deeply need this feeling'] },
-        { id: 'body_energy', label: 'How is your body/energy right now?', type: 'choice', options: [
-            { v: 'drained', t: 'Drained — need care' }, { v: 'ok', t: 'Okay' }, { v: 'high', t: 'Energized / restless' }
-        ]},
-        { id: 'emotional_state', label: 'Emotional weather check', type: 'choice', options: [
-            { v: 'low', t: 'Sad / lonely / stressed' }, { v: 'flat', t: 'Bored / numb' },
-            { v: 'calm', t: 'Calm & clear' }, { v: 'happy', t: 'Already happy' }
+        { id: 'body_mood', label: 'Body energy + emotional weather right now?', type: 'choice', options: [
+            { v: 'drained_low', t: 'Drained + sad/stressed' }, { v: 'drained_ok', t: 'Drained but calm' },
+            { v: 'ok_flat', t: 'Okay but bored/numb' }, { v: 'ok_calm', t: 'Okay + clear' },
+            { v: 'high_happy', t: 'Energized + already happy' }, { v: 'high_restless', t: 'Energized / restless urge' }
         ]},
         { id: 'can_afford', label: 'Can you spend this without money anxiety afterward?', type: 'choice', options: [
             { v: 'easy', t: 'Easily' }, { v: 'ok', t: 'Yes, mild pinch' }, { v: 'tight', t: 'It\'ll sting' }, { v: 'no', t: 'Would regret the cost' }
         ]},
-        { id: 'recent_treats', label: 'Have you had a similar treat recently?', type: 'choice', options: [
+        { id: 'money_timing', label: 'Paying from / timing check?', type: 'choice', options: [
+            { v: 'planned', t: 'Planned joy budget' }, { v: 'saved', t: 'From savings, still fine' },
+            { v: 'payday', t: 'Payday bounce' }, { v: 'stretch', t: 'Stretching this week' }, { v: 'owe', t: 'Would need to borrow/juggle' }
+        ]},
+        { id: 'recent_treats', label: 'Similar treat recently?', type: 'choice', options: [
             { v: 'long', t: 'Not in a long while' }, { v: 'week', t: 'Within a week' }, { v: 'yesterday', t: 'Yesterday / today already' }, { v: 'streak', t: 'I\'ve been on a streak' }
         ]},
-        { id: 'memory_value', label: 'Will this become a warm memory later?', type: 'scale', min: 1, max: 5, hints: ['Forgettable', 'Maybe', 'Somewhat', 'Yes', 'Core memory vibes'] },
-        { id: 'connection', label: 'Does this deepen connection with someone you care about?', type: 'choice', options: [
-            { v: 'yes', t: 'Yes, shared moment' }, { v: 'solo', t: 'Solo — for me' }, { v: 'no', t: 'Not really social' }
+        { id: 'memory_value', label: 'Warm memory potential later?', type: 'scale', min: 1, max: 5, hints: ['Forgettable', 'Maybe', 'Somewhat', 'Yes', 'Core memory vibes'] },
+        { id: 'people_plan', label: 'People: connection + company quality?', type: 'choice', options: [
+            { v: 'gold', t: 'Shared with good people' }, { v: 'solo_good', t: 'Solo · intentional for me' },
+            { v: 'mixed', t: 'Mixed / uncertain company' }, { v: 'drain', t: 'Draining company / pressure' }, { v: 'na', t: 'Not a people thing' }
         ]},
-        { id: 'alternative', label: 'Is there a cheaper way to get ~80% of the feeling?', type: 'choice', options: [
-            { v: 'no', t: 'No good substitute' }, { v: 'partial', t: 'Partial substitute exists' }, { v: 'yes', t: 'Yes, easy cheaper option' }
+        { id: 'alternative_home', label: 'Cheaper 80% feeling OR solid at-home version?', type: 'choice', options: [
+            { v: 'no_alt', t: 'No good substitute' }, { v: 'partial', t: 'Partial substitute' },
+            { v: 'home_ok', t: 'Home version can work' }, { v: 'cheap_easy', t: 'Easy cheaper option exists' }
         ]},
-        { id: 'health', label: 'Health / sleep / tomorrow-you impact?', type: 'choice', options: [
-            { v: 'good', t: 'Neutral or good' }, { v: 'mild', t: 'Mild downside' }, { v: 'bad', t: 'Will hurt tomorrow' }
+        { id: 'health_tomorrow', label: 'Health/sleep impact + how you\'ll feel tomorrow?', type: 'choice', options: [
+            { v: 'good_glad', t: 'Fine health · glad tomorrow' }, { v: 'good_fine', t: 'Fine health · fine either way' },
+            { v: 'mild_meh', t: 'Mild downside · maybe meh' }, { v: 'bad_regret', t: 'Hurts tomorrow · likely regret' }
         ]},
-        { id: 'obligation', label: 'Are you doing this from pressure or true want?', type: 'choice', options: [
+        { id: 'obligation', label: 'True want or pressure/FOMO?', type: 'choice', options: [
             { v: 'want', t: 'True want' }, { v: 'mix', t: 'Mix' }, { v: 'pressure', t: 'Pressure / guilt / FOMO' }
         ]},
-        { id: 'scarcity', label: 'Is this a rare window (travel, show, people visiting)?', type: 'choice', options: [
+        { id: 'scarcity', label: 'Rare window (travel, show, people visiting)?', type: 'choice', options: [
             { v: 'rare', t: 'Rare / time-sensitive' }, { v: 'sometime', t: 'Can happen again soon' }, { v: 'anytime', t: 'Anytime available' }
         ]},
-        { id: 'self_kindness', label: 'Have you been too hard on yourself with money lately?', type: 'choice', options: [
-            { v: 'yes', t: 'Yes — over-restricting' }, { v: 'balanced', t: 'Balanced' }, { v: 'loose', t: 'I\'ve been spending freely' }
+        { id: 'self_kindness', label: 'Too hard on yourself with money lately?', type: 'choice', options: [
+            { v: 'yes', t: 'Yes — over-restricting' }, { v: 'balanced', t: 'Balanced' }, { v: 'loose', t: 'Spending freely lately' }
         ]},
-        { id: 'waste_feel', label: 'Does spending this feel wasteful in your gut?', type: 'scale', min: 1, max: 5, hints: ['Not wasteful', 'Slightly', 'Mixed', 'Kinda wasteful', 'Very wasteful'] },
-        { id: 'presence', label: 'Will you actually be present for it (not phone-scrolling through it)?', type: 'choice', options: [
+        { id: 'waste_feel', label: 'Gut: does this feel wasteful?', type: 'scale', min: 1, max: 5, hints: ['Not wasteful', 'Slightly', 'Mixed', 'Kinda wasteful', 'Very wasteful'] },
+        { id: 'presence', label: 'Will you savor it (phone away) — or half-distract?', type: 'choice', options: [
             { v: 'yes', t: 'Yes, I\'ll savor it' }, { v: 'maybe', t: 'Maybe' }, { v: 'no', t: 'Probably distracted' }
         ]},
-        { id: 'values', label: 'Does this match the life you want — not just a dopamine hit?', type: 'scale', min: 1, max: 5, hints: ['Conflicts', 'Neutral', 'Somewhat', 'Fits', 'Deeply fits'] },
-        { id: 'tomorrow_feel', label: 'How will you feel about this tomorrow morning?', type: 'choice', options: [
-            { v: 'glad', t: 'Glad I did it' }, { v: 'fine', t: 'Fine either way' }, { v: 'meh', t: 'Probably meh' }, { v: 'regret', t: 'Likely regret' }
+        { id: 'values', label: 'Matches the life you want — not just dopamine?', type: 'scale', min: 1, max: 5, hints: ['Conflicts', 'Neutral', 'Somewhat', 'Fits', 'Deeply fits'] },
+        { id: 'swap', label: 'Skipping frees money for something you care about more?', type: 'choice', options: [
+            { v: 'no', t: 'No bigger priority waiting' }, { v: 'maybe', t: 'Maybe' }, { v: 'yes', t: 'Yes — protect that instead' }
         ]},
-        { id: 'swap', label: 'Would skipping this free money for something you care about more?', type: 'choice', options: [
-            { v: 'no', t: 'No bigger priority waiting' }, { v: 'maybe', t: 'Maybe' }, { v: 'yes', t: 'Yes — I should protect that instead' }
-        ]},
-        { id: 'home_option', label: 'Could a simple at-home version still feel good tonight?', type: 'choice', options: [
-            { v: 'no', t: 'Home won\'t cut it' }, { v: 'somewhat', t: 'Somewhat' }, { v: 'yes', t: 'Yes, home can work' }
-        ]},
-        { id: 'company_quality', label: 'If with people — is the company worth it?', type: 'choice', options: [
-            { v: 'yes', t: 'Yes / going solo for me' }, { v: 'mixed', t: 'Mixed company' }, { v: 'no', t: 'Draining company' }, { v: 'na', t: 'N/A' }
-        ]},
-        { id: 'habit_loop', label: 'Is this becoming an autopilot habit (order out, scroll-buy, etc.)?', type: 'choice', options: [
+        { id: 'habit_loop', label: 'Autopilot habit (order out, scroll-buy, etc.)?', type: 'choice', options: [
             { v: 'no', t: 'Intentional choice' }, { v: 'forming', t: 'Starting to be habit' }, { v: 'yes', t: 'Autopilot habit' }
         ]},
-        { id: 'gratitude', label: 'Can you name what you\'re grateful for today without this?', type: 'choice', options: [
+        { id: 'social_signal', label: 'Any Instagram / flex / “should look fun” motive?', type: 'choice', options: [
+            { v: 'none', t: 'None — private joy' }, { v: 'little', t: 'A little' }, { v: 'yes', t: 'Yes, posting/flex is part of it' }
+        ]},
+        { id: 'basic_needs', label: 'Basics covered this week (food, travel, bills) if you do this?', type: 'choice', options: [
+            { v: 'yes', t: 'Yes, basics safe' }, { v: 'tight', t: 'Basics get tight' }, { v: 'no', t: 'Would risk basics' }
+        ]},
+        { id: 'gratitude', label: 'Can you name gratitude today without this?', type: 'choice', options: [
             { v: 'yes', t: 'Yes, I can' }, { v: 'hard', t: 'Hard right now' }, { v: 'no', t: 'Feeling empty' }
+        ]},
+        { id: 'advisor_rule', label: 'One advisor rule for tonight?', type: 'choice', options: [
+            { v: 'shrink', t: 'Pick a cheaper version first' }, { v: 'share', t: 'Only if shared with good people' },
+            { v: 'savor', t: 'Yes only if I\'ll be fully present' }, { v: 'sleep', t: 'Decide tomorrow morning' },
+            { v: 'mercy', t: 'Small mercy treat is OK' }
         ]},
         { id: 'notes', label: 'Anything else on your heart? (optional)', type: 'text', placeholder: 'Who you\'re with, why it matters, what you\'re tired of, what you hope to feel…' }
     ];
@@ -169,15 +208,17 @@ const BuyModule = (() => {
         setMode('product');
     }
 
-    function setMode(mode) {
+    function setMode(mode, opts = {}) {
         _mode = mode;
         document.querySelectorAll('.buy-mode-tab').forEach(t => {
             t.classList.toggle('active', t.dataset.buymode === mode);
         });
         document.getElementById('buy-mode-product')?.classList.toggle('hidden', mode !== 'product');
         document.getElementById('buy-mode-life')?.classList.toggle('hidden', mode !== 'life');
-        const report = document.getElementById('buy-report');
-        if (report) { report.classList.add('hidden'); report.innerHTML = ''; }
+        if (!opts.keepReport) {
+            const report = document.getElementById('buy-report');
+            if (report) { report.classList.add('hidden'); report.innerHTML = ''; }
+        }
     }
 
     function renderQuestions(containerId, questions) {
@@ -244,7 +285,60 @@ const BuyModule = (() => {
         list.push({ category, label, status, detail, score: clamp(score), weight });
     }
 
-    function buildProductParameters(product, a, price) {
+    function normalizeProductAnswers(raw) {
+        const a = Object.assign({}, raw);
+        // Compound → legacy fields used across scoring
+        const uc = a.usage_context;
+        a.usage_freq = ({ work_daily: 'daily', home_daily: 'daily', weekly: 'weekly', travel: 'monthly', rarely: 'rarely', social_image: 'rarely' })[uc] || a.usage_freq;
+        if (a.already_own === 'replace') { a.already_own_raw = 'replace'; a.already_own = 'yes'; a.value_add = a.value_add || 'replace'; }
+        else if (a.already_own === 'keep_both') { a.already_own_raw = 'keep_both'; a.already_own = 'yes'; }
+        const ut = a.urgency_timing;
+        a.urgency = ({ need_now_clear: 'now', need_now_night: 'now', soon_planned: 'soon', payday: 'soon', can_wait: 'later', no_deadline: 'never' })[ut] || a.urgency;
+        const ri = a.research_influence;
+        a.researched = ({ deep_own: 'deep', some_own: 'some', friend: 'some', influencer: 'none', sale_only: 'none', none: 'none' })[ri] || a.researched;
+        if (a.setup_skill === 'ready_week' || a.setup_skill === 'ready_later') a.space = 'yes';
+        else if (a.setup_skill === 'arrange') a.space = 'maybe';
+        else if (a.setup_skill === 'doubt') a.space = 'no';
+        if (a.tco_extras === 'none') a.maintenance = 'none';
+        else if (a.tco_extras === 'low') a.maintenance = 'low';
+        else if (a.tco_extras === 'high') a.maintenance = 'high';
+        if (a.warranty_exit === 'strong' || a.warranty_exit === 'return_only') a.return_policy = 'yes';
+        else if (a.warranty_exit === 'warranty') a.return_policy = 'maybe';
+        else if (a.warranty_exit === 'stuck') a.return_policy = 'no';
+        return a;
+    }
+
+    function normalizeLifeAnswers(raw) {
+        const a = Object.assign({}, raw);
+        const bm = a.body_mood;
+        if (bm) {
+            a.body_energy = bm.startsWith('drained') ? 'drained' : bm.startsWith('high') ? 'high' : 'ok';
+            a.emotional_state = ({
+                drained_low: 'low', drained_ok: 'calm', ok_flat: 'flat', ok_calm: 'calm',
+                high_happy: 'happy', high_restless: 'flat'
+            })[bm] || 'calm';
+        }
+        const pp = a.people_plan;
+        if (pp === 'gold') { a.connection = 'yes'; a.company_quality = 'yes'; }
+        else if (pp === 'solo_good') { a.connection = 'solo'; a.company_quality = 'na'; }
+        else if (pp === 'mixed') { a.connection = 'yes'; a.company_quality = 'mixed'; }
+        else if (pp === 'drain') { a.connection = 'no'; a.company_quality = 'no'; }
+        else if (pp === 'na') { a.connection = 'no'; a.company_quality = 'na'; }
+        const ah = a.alternative_home;
+        if (ah === 'no_alt') { a.alternative = 'no'; a.home_option = 'no'; }
+        else if (ah === 'partial') { a.alternative = 'partial'; a.home_option = 'somewhat'; }
+        else if (ah === 'home_ok') { a.alternative = 'partial'; a.home_option = 'yes'; }
+        else if (ah === 'cheap_easy') { a.alternative = 'yes'; a.home_option = 'somewhat'; }
+        const ht = a.health_tomorrow;
+        if (ht === 'good_glad') { a.health = 'good'; a.tomorrow_feel = 'glad'; }
+        else if (ht === 'good_fine') { a.health = 'good'; a.tomorrow_feel = 'fine'; }
+        else if (ht === 'mild_meh') { a.health = 'mild'; a.tomorrow_feel = 'meh'; }
+        else if (ht === 'bad_regret') { a.health = 'bad'; a.tomorrow_feel = 'regret'; }
+        return a;
+    }
+
+    function buildProductParameters(product, rawAnswers, price) {
+        const a = normalizeProductAnswers(rawAnswers);
         const P = [];
         const nec = num(a.necessity);
         const work = num(a.work_impact);
@@ -265,6 +359,21 @@ const BuyModule = (() => {
             a.can_afford === 'easy' || a.can_afford === 'ok' ? 'pass' : a.can_afford === 'tight' ? 'warn' : a.can_afford ? 'fail' : 'info',
             a.can_afford ? `You said: ${a.can_afford}.` : 'Not answered.',
             affordMap[a.can_afford] || 40, 1.8);
+        addParam(P, 'Money Comfort', 'Funding source + emergency buffer',
+            a.money_source === 'saved_safe' || a.money_source === 'salary_planned' ? 'pass' :
+                a.money_source === 'saved_thin' || a.money_source === 'stretch' ? 'warn' :
+                    a.money_source === 'borrow' ? 'fail' : 'info',
+            a.money_source === 'borrow' ? 'Funding via borrow/credit is a hard advisor brake.' :
+                a.money_source === 'saved_thin' ? 'Buffer gets thin — size down or wait.' :
+                    a.money_source ? `Funding: ${a.money_source}.` : 'Not answered.',
+            ({ saved_safe: 92, salary_planned: 80, saved_thin: 45, stretch: 30, borrow: 8 }[a.money_source] || 40), 1.9);
+        addParam(P, 'Money Comfort', 'Opportunity cost of saying yes',
+            a.opportunity_cost === 'nothing' ? 'pass' : a.opportunity_cost === 'goal' || a.opportunity_cost === 'invest' ? 'warn' :
+                a.opportunity_cost === 'bills' || a.opportunity_cost === 'debt' ? 'fail' : 'info',
+            a.opportunity_cost === 'bills' || a.opportunity_cost === 'debt'
+                ? 'This competes with obligations — advisor priority is clear: obligations first.'
+                : a.opportunity_cost ? `Money otherwise protects: ${a.opportunity_cost}.` : 'Not answered.',
+            ({ nothing: 85, goal: 55, invest: 50, bills: 20, debt: 12 }[a.opportunity_cost] || 40), 1.6);
         addParam(P, 'Money Comfort', 'Price band awareness',
             price <= 500 ? 'pass' : price <= 2000 ? 'pass' : price <= 10000 ? 'warn' : 'info',
             `${fmt(price)} — ${price <= 500 ? 'small ticket' : price <= 2000 ? 'moderate' : price <= 10000 ? 'serious buy' : 'major decision'}.`,
@@ -287,12 +396,22 @@ const BuyModule = (() => {
             nec ? `Necessity ${nec}/5.` : 'Not answered.', nec ? nec * 20 : 40, 1.8);
         addParam(P, 'Necessity & Use', 'Work / study impact', work >= 4 ? 'pass' : work === 3 ? 'warn' : work ? 'fail' : 'info',
             work ? `Impact ${work}/5.` : 'Not answered.', work ? work * 20 : 40, 1.5);
-        addParam(P, 'Necessity & Use', 'Existing alternative',
-            a.already_own === 'no' ? 'pass' : a.already_own === 'partial' ? 'warn' : a.already_own === 'yes' ? 'fail' : 'info',
-            a.already_own === 'yes' ? 'You already have something similar.' : a.already_own ? `Alternative: ${a.already_own}.` : 'Not answered.',
-            ({ no: 90, partial: 55, yes: 25 }[a.already_own] || 40), 1.5);
-        addParam(P, 'Necessity & Use', 'Usage frequency', usageMap[a.usage_freq] >= 70 ? 'pass' : usageMap[a.usage_freq] >= 40 ? 'warn' : a.usage_freq ? 'fail' : 'info',
-            a.usage_freq ? `Usage: ${a.usage_freq}.` : 'Not answered.', usageMap[a.usage_freq] || 40, 1.5);
+        addParam(P, 'Necessity & Use', 'Existing alternative / one-in-one-out',
+            a.already_own === 'no' ? 'pass' : a.already_own === 'partial' ? 'warn' :
+                a.already_own_raw === 'replace' ? 'pass' : a.already_own_raw === 'keep_both' ? 'fail' :
+                    a.already_own === 'yes' ? 'fail' : 'info',
+            a.already_own_raw === 'keep_both' ? 'Keeping both = upgrade tax + clutter.' :
+                a.already_own_raw === 'replace' ? 'Replacing/retiring the old one — cleaner decision.' :
+                    a.already_own === 'yes' ? 'You already have something similar.' :
+                        a.already_own ? `Alternative: ${a.already_own}.` : 'Not answered.',
+            a.already_own_raw === 'replace' ? 82 : ({ no: 90, partial: 55, yes: 25 }[a.already_own] || 40), 1.5);
+        addParam(P, 'Necessity & Use', 'Usage context + frequency',
+            a.usage_context === 'work_daily' || a.usage_context === 'home_daily' ? 'pass' :
+                a.usage_context === 'weekly' ? 'pass' :
+                    a.usage_context === 'travel' ? 'warn' :
+                        a.usage_context === 'social_image' || a.usage_context === 'rarely' ? 'fail' : 'info',
+            a.usage_context ? `Use plan: ${a.usage_context}.` : 'Not answered.',
+            ({ work_daily: 95, home_daily: 90, weekly: 75, travel: 50, rarely: 22, social_image: 20 }[a.usage_context] || usageMap[a.usage_freq] || 40), 1.5);
         (() => {
             const uses = { daily: 300, weekly: 50, monthly: 12, rarely: 2 }[a.usage_freq] || 10;
             const cpu = price / uses;
@@ -332,11 +451,15 @@ const BuyModule = (() => {
         // Discipline & timing
         addParam(P, 'Discipline & Timing', 'Impulse level', impulse <= 2 ? 'pass' : impulse === 3 ? 'warn' : impulse ? 'fail' : 'info',
             impulse ? `Impulse ${impulse}/5.` : 'Not answered.', impulse ? clamp(110 - impulse * 18) : 40, 1.6);
-        addParam(P, 'Discipline & Timing', 'Research depth',
-            a.researched === 'deep' ? 'pass' : a.researched === 'some' ? 'warn' : a.researched === 'none' ? 'fail' : 'info',
-            a.researched === 'none' ? 'One link isn\'t research.' : a.researched ? `Research: ${a.researched}.` : 'Not answered.',
-            ({ deep: 90, some: 65, none: 25 }[a.researched] || 40), 1.3);
-        addParam(P, 'Discipline & Timing', 'Mood / retail-therapy',
+        addParam(P, 'Discipline & Timing', 'Research + influence source',
+            a.research_influence === 'deep_own' ? 'pass' : a.research_influence === 'some_own' ? 'pass' :
+                a.research_influence === 'friend' ? 'warn' :
+                    a.research_influence === 'influencer' || a.research_influence === 'sale_only' || a.research_influence === 'none' ? 'fail' : 'info',
+            a.research_influence === 'sale_only' ? 'Sale pressure is not a strategy.' :
+                a.research_influence === 'influencer' ? 'Influencer pull needs your own verification.' :
+                    a.research_influence ? `Source: ${a.research_influence}.` : 'Not answered.',
+            ({ deep_own: 92, some_own: 75, friend: 48, influencer: 25, sale_only: 20, none: 18 }[a.research_influence] || 40), 1.4);
+        addParam(P, 'Discipline & Timing', 'Mood / unbox therapy',
             a.mood === 'no' ? 'pass' : a.mood === 'partly' ? 'warn' : a.mood === 'yes' ? 'fail' : 'info',
             a.mood === 'yes' ? 'Feelings first, cart second — walk before you buy.' : a.mood ? `Mood: ${a.mood}.` : 'Not answered.',
             ({ no: 90, partly: 50, yes: 20 }[a.mood] || 40), 1.5);
@@ -344,28 +467,48 @@ const BuyModule = (() => {
             a.regretted_similar === 'no' ? 'pass' : a.regretted_similar === 'once' ? 'warn' : a.regretted_similar === 'often' ? 'fail' : 'info',
             a.regretted_similar ? `Regret history: ${a.regretted_similar}.` : 'Not answered.',
             ({ no: 85, once: 55, often: 20 }[a.regretted_similar] || 40), 1.2);
-        addParam(P, 'Discipline & Timing', 'Urgency honesty',
-            a.urgency === 'now' && nec < 4 ? 'warn' : a.urgency === 'never' || a.urgency === 'later' ? 'pass' : a.urgency ? 'info' : 'info',
-            a.urgency ? `Urgency: ${a.urgency}.` : 'Not answered.',
-            ({ now: 40, soon: 55, later: 80, never: 85 }[a.urgency] || 45), 1.0);
+        addParam(P, 'Discipline & Timing', 'Urgency × cart timing',
+            a.urgency_timing === 'need_now_clear' && nec >= 4 ? 'pass' :
+                a.urgency_timing === 'need_now_night' || a.urgency_timing === 'payday' ? 'fail' :
+                    a.urgency_timing === 'can_wait' || a.urgency_timing === 'no_deadline' ? 'pass' :
+                        a.urgency_timing === 'soon_planned' ? 'pass' : 'info',
+            a.urgency_timing === 'need_now_night' ? 'Late-night carts are where budgets go to die.' :
+                a.urgency_timing === 'payday' ? 'Payday bounce is a classic wealth leak.' :
+                    a.urgency_timing ? `Timing: ${a.urgency_timing}.` : 'Not answered.',
+            ({ need_now_clear: 70, need_now_night: 18, soon_planned: 72, payday: 22, can_wait: 85, no_deadline: 88 }[a.urgency_timing] || 45), 1.3);
+        addParam(P, 'Discipline & Timing', 'Cooling-off discipline',
+            a.cool_off === 'waited' ? 'pass' : a.cool_off === 'can' ? 'warn' : a.cool_off === 'wont' ? 'fail' : 'info',
+            a.cool_off === 'wont' ? 'Refusal to wait is a red flag unless necessity is critical.' :
+                a.cool_off ? `Cool-off: ${a.cool_off}.` : 'Not answered.',
+            ({ waited: 90, can: 60, wont: 25 }[a.cool_off] || 45), 1.3);
         addParam(P, 'Discipline & Timing', 'Secondhand / cheaper check',
             a.secondhand === 'yes' || a.secondhand === 'na' ? 'pass' : a.secondhand === 'no' ? 'warn' : 'info',
             a.secondhand === 'no' ? 'Worth a 10-minute cheaper-option scan.' : a.secondhand ? `Checked: ${a.secondhand}.` : 'Not answered.',
             ({ yes: 85, na: 70, no: 40 }[a.secondhand] || 45), 0.9);
-        addParam(P, 'Discipline & Timing', 'Return safety net',
-            a.return_policy === 'yes' ? 'pass' : a.return_policy === 'maybe' ? 'warn' : a.return_policy === 'no' ? 'warn' : 'info',
-            a.return_policy ? `Returns: ${a.return_policy}.` : 'Not answered.',
-            ({ yes: 80, maybe: 55, no: 35 }[a.return_policy] || 45), 0.7);
+        addParam(P, 'Discipline & Timing', 'Warranty + exit plan',
+            a.warranty_exit === 'strong' ? 'pass' : a.warranty_exit === 'warranty' || a.warranty_exit === 'return_only' ? 'warn' :
+                a.warranty_exit === 'stuck' ? 'fail' : 'info',
+            a.warranty_exit === 'stuck' ? 'Hard exit raises the quality bar for saying yes.' :
+                a.warranty_exit ? `Exit/support: ${a.warranty_exit}.` : 'Not answered.',
+            ({ strong: 88, warranty: 62, return_only: 65, stuck: 28, unknown: 40 }[a.warranty_exit] || 45), 1.0);
 
         // Practical fit
-        addParam(P, 'Practical Fit', 'Space / setup ready',
-            a.space === 'yes' ? 'pass' : a.space === 'maybe' ? 'warn' : a.space === 'no' ? 'fail' : 'info',
-            a.space === 'no' ? 'Nowhere to put it = closet graveyard risk.' : a.space ? `Space: ${a.space}.` : 'Not answered.',
-            ({ yes: 85, maybe: 50, no: 25 }[a.space] || 40), 0.9);
-        addParam(P, 'Practical Fit', 'Maintenance burden',
-            a.maintenance === 'none' ? 'pass' : a.maintenance === 'low' ? 'warn' : a.maintenance === 'high' ? 'fail' : 'info',
-            a.maintenance ? `Maintenance: ${a.maintenance}.` : 'Not answered.',
-            ({ none: 90, low: 65, high: 30 }[a.maintenance] || 40), 1.0);
+        addParam(P, 'Practical Fit', 'Setup + space + time-to-value',
+            a.setup_skill === 'ready_week' ? 'pass' : a.setup_skill === 'ready_later' ? 'warn' :
+                a.setup_skill === 'arrange' ? 'warn' : a.setup_skill === 'doubt' ? 'fail' : 'info',
+            a.setup_skill === 'doubt' ? 'If you might never fully use it, don\'t fund the fantasy.' :
+                a.setup_skill ? `Setup plan: ${a.setup_skill}.` : 'Not answered.',
+            ({ ready_week: 90, ready_later: 55, arrange: 40, doubt: 15 }[a.setup_skill] || 40), 1.2);
+        addParam(P, 'Practical Fit', 'True cost of ownership extras',
+            a.tco_extras === 'none' ? 'pass' : a.tco_extras === 'low' ? 'warn' :
+                a.tco_extras === 'high' || a.tco_extras === 'unknown' ? 'fail' : 'info',
+            a.tco_extras === 'unknown' ? 'Unknown extras = incomplete analysis — check before buying.' :
+                a.tco_extras ? `Extras: ${a.tco_extras}.` : 'Not answered.',
+            ({ none: 90, low: 65, high: 28, unknown: 30 }[a.tco_extras] || 40), 1.2);
+        addParam(P, 'Practical Fit', 'Focus / half-used gadget risk',
+            a.focus_risk === 'no' ? 'pass' : a.focus_risk === 'maybe' ? 'warn' : a.focus_risk === 'yes' ? 'fail' : 'info',
+            a.focus_risk ? `Focus risk: ${a.focus_risk}.` : 'Not answered.',
+            ({ no: 88, maybe: 50, yes: 22 }[a.focus_risk] || 45), 1.1);
         addParam(P, 'Practical Fit', 'Shared utility',
             a.shared_use === 'many' ? 'pass' : a.shared_use === 'gift' ? 'info' : a.shared_use ? 'warn' : 'info',
             a.shared_use ? `Shared use: ${a.shared_use}.` : 'Not answered.',
@@ -388,66 +531,60 @@ const BuyModule = (() => {
             /amazon\.|flipkart\.|myntra\.|croma\.|apple\.|samsung\./i.test(product.host || '') ? 'pass' : 'warn',
             `Host: ${product.host || 'unknown'}.`, /amazon\.|flipkart\.|myntra\.|croma\.|apple\.|samsung\./i.test(product.host || '') ? 80 : 50, 0.7);
 
-        // Expanded audit rows for depth
-        const extras = [
-            ['Extended Audit', 'Answers completeness', PRODUCT_QUESTIONS.filter(q => q.type !== 'text').every(q => a[q.id]), 'All core questions answered.'],
-            ['Extended Audit', 'Notes provided', !!(a.notes && a.notes.length > 8), 'Extra context sharpens advice.'],
-            ['Extended Audit', 'Tool not toy', ['career', 'health', 'time', 'replace'].includes(a.value_add), 'Utility framing.'],
-            ['Extended Audit', 'Not FOMO urgency', !(a.urgency === 'now' && nec <= 2), 'Urgency matches need.'],
-            ['Extended Audit', 'Cooling-off friendly', impulse <= 3 && a.mood !== 'yes', 'Emotional temperature OK.'],
-            ['Extended Audit', 'Affordable joy exception', a.life_beyond === 'yes' && a.can_afford === 'easy' && joy >= 4, 'Strict saver + affordable joy.'],
-            ['Extended Audit', 'High necessity override', nec >= 5 && work >= 4, 'Critical functional need.'],
-            ['Extended Audit', 'Upgrade tax avoided', a.already_own !== 'yes' || a.value_add === 'replace', 'Not stacking duplicates.'],
-            ['Extended Audit', 'Subscription trap check', a.maintenance !== 'high', 'Recurring costs controlled.'],
-            ['Extended Audit', 'Presence over possession', future >= 3 && waste <= 3, 'Likely to be used, not displayed.'],
-            ['Extended Audit', 'Sale pressure resistance', !(a.notes && /sale|deal|ends|limited/i.test(a.notes)) || nec >= 4, 'Sales expire; regret doesn\'t.'],
-            ['Extended Audit', 'Friend-hype verified', !(a.notes && /friend|bro|recommended/i.test(a.notes)) || a.researched !== 'none', 'Verify hype.'],
-            ['Extended Audit', 'One-in one-out', a.already_own !== 'yes' || a.value_add === 'replace', 'Replace rather than pile.'],
-            ['Extended Audit', 'Earn-then-own spirit', a.save_first === 'yes' || a.can_afford === 'easy', 'Own without hangover.'],
-            ['Extended Audit', 'Long-game asset', a.lifespan === 'years' && usageMap[a.usage_freq] >= 70, 'Durable daily driver.']
+        // Advisor synthesis — every point tied to asked answers
+        const advisorChecks = [
+            ['Advisor Checks', 'Intake completeness', PRODUCT_QUESTIONS.filter(q => q.type !== 'text').every(q => rawAnswers[q.id]), 'All scored questions answered.', 0.7],
+            ['Advisor Checks', 'Context note provided', !!(a.notes && a.notes.length > 8), 'Written context improves precision.', 0.5],
+            ['Advisor Checks', 'Utility over toy', ['career', 'health', 'time', 'replace'].includes(a.value_add) || a.usage_context === 'work_daily', 'Earns keep via work/health/time/replace.', 1.2],
+            ['Advisor Checks', 'Urgency matches necessity', !(a.urgency === 'now' && nec <= 2), 'No fake urgency on a weak need.', 1.1],
+            ['Advisor Checks', 'Emotional temperature OK', impulse <= 3 && a.mood !== 'yes' && a.urgency_timing !== 'need_now_night', 'Not a heated cart decision.', 1.2],
+            ['Advisor Checks', 'Affordable intentional joy', a.life_beyond === 'yes' && a.can_afford === 'easy' && joy >= 4 && a.money_source !== 'borrow', 'Strict saver + safe joy exception.', 1.0],
+            ['Advisor Checks', 'Critical function override', nec >= 5 && work >= 4, 'Blocks real work/life function.', 1.3],
+            ['Advisor Checks', 'No duplicate stack', a.already_own_raw !== 'keep_both' && (a.already_own !== 'yes' || a.already_own_raw === 'replace' || a.value_add === 'replace'), 'One-in one-out respected.', 1.2],
+            ['Advisor Checks', 'Subscription / extras controlled', a.tco_extras !== 'high' && a.tco_extras !== 'unknown', 'True cost understood.', 1.1],
+            ['Advisor Checks', 'Will be used, not displayed', future >= 3 && waste <= 3 && a.focus_risk !== 'yes', 'Use > possession.', 1.1],
+            ['Advisor Checks', 'Sale / hype resistance', a.research_influence !== 'sale_only' && a.research_influence !== 'influencer', 'Not bought by countdown/ad.', 1.2],
+            ['Advisor Checks', 'Social proof verified', a.research_influence !== 'friend' || a.researched === 'deep' || a.researched === 'some', 'Friend hype cross-checked.', 0.9],
+            ['Advisor Checks', 'Earn-then-own', a.save_first === 'yes' || a.money_source === 'saved_safe' || a.can_afford === 'easy', 'No financial hangover path.', 1.2],
+            ['Advisor Checks', 'Long-game asset', a.lifespan === 'years' && usageMap[a.usage_freq] >= 70, 'Durable frequent use.', 1.0],
+            ['Advisor Checks', 'Your chosen advisor rule held',
+                (a.advisor_constraint === 'must_utility' && ['career', 'health', 'time', 'replace'].includes(a.value_add)) ||
+                (a.advisor_constraint === 'must_buffer' && (a.money_source === 'saved_safe' || a.money_source === 'salary_planned')) ||
+                (a.advisor_constraint === 'must_wait' && (a.cool_off === 'waited' || a.cool_off === 'can')) ||
+                (a.advisor_constraint === 'must_cheaper' && (a.secondhand === 'yes' || a.quality_need !== 'yes')) ||
+                (a.advisor_constraint === 'joy_ok' && a.can_afford === 'easy' && joy >= 3 && waste <= 3),
+                'You set a rule — decision should obey it.', 1.5],
+            ['Advisor Checks', 'Night cart avoided', a.urgency_timing !== 'need_now_night', 'No late-night purchase pressure.', 1.0],
+            ['Advisor Checks', 'Payday bounce avoided', a.urgency_timing !== 'payday', 'Not spending because money just arrived.', 1.0],
+            ['Advisor Checks', 'Exit liquidity OK', a.warranty_exit === 'strong' || a.warranty_exit === 'return_only' || price < 1500, 'Can reverse if wrong.', 0.9],
+            ['Advisor Checks', 'Setup within a week', a.setup_skill === 'ready_week', 'Fast time-to-value.', 1.0],
+            ['Advisor Checks', 'Not image-primary', a.identity !== 'image' && a.usage_context !== 'social_image', 'Utility > costume.', 1.1]
         ];
-        extras.forEach(([cat, label, good, detail]) => {
-            addParam(P, cat, label, good ? 'pass' : 'warn', detail, good ? 85 : 42, 0.6);
+        advisorChecks.forEach(([cat, label, good, detail, w]) => {
+            addParam(P, cat, label, good ? 'pass' : 'warn', detail, good ? 88 : 38, w || 0.8);
         });
 
-        // Pad with practical checklist marks (answer-derived, not ledger)
-        const more = [
-            'Repairability mindset', 'Accessory cost awareness', 'Learning curve patience',
-            'Compatibility with what you own', 'Warranty length care', 'Service network nearby',
-            'Counterfeit caution', 'Delivery cash planning', 'Unboxing-to-value speed',
-            'Habit formation likelihood', 'Attention distraction risk', 'Focus impact on studies/work',
-            'Resale value later', 'Environmental footprint thought', 'Gift vs personal utility',
-            'Comparison paralysis avoided', 'Written pros list mentally', 'Written cons list mentally',
-            '24h cool-off willingness', '7-day delay experiment', 'Ask a trusted person',
-            'Total cost of ownership', 'Power / data extras', 'Packaging clutter',
-            'Storage plan exists', 'Time to set it up', 'Skill to use it fully',
-            'Replaces rented/borrowed tool', 'Stops a recurring workaround', 'Quiet luxury vs loud flex',
-            'Night-time cart caution', 'Payday bounce caution', 'Festival FOMO caution',
-            'Influencer pull resistance', 'Unbox therapy urge check', 'Collection completion urge',
-            'Minimalism compatibility', 'Travel usefulness', 'Home usefulness',
-            'Emergency usefulness', 'Seasonal usefulness', 'Daily carry usefulness',
-            'Battery / consumable realism', 'Software lock-in risk', 'Privacy tradeoff awareness',
-            'Support chat fatigue risk', 'Setup frustration tolerance', 'Post-purchase review plan'
-        ];
-        more.forEach((label, i) => {
-            const base = clamp(
-                55
-                + (nec - 3) * 5
-                + (3 - impulse) * 4
-                + (future - 3) * 4
-                + (joy - 3) * 2
-                + (a.can_afford === 'easy' ? 8 : a.can_afford === 'no' ? -12 : 0)
-                + (rating ? (rating - 3.5) * 6 : 0)
-                + ((i % 5) - 2) * 2
-            );
-            addParam(P, 'Deep Checklist', label, base >= 70 ? 'pass' : base >= 45 ? 'warn' : 'fail',
-                `Marked from your answers + product signals (#${i + 1}).`, base, 0.35);
-        });
+        // Concrete senior-advisor money math (answer-based, no ledger)
+        const weeksToSave = price > 0 ? Math.max(1, Math.ceil(price / Math.max(500, price / 8))) : 1;
+        addParam(P, 'Advisor Math', 'Save-rate path',
+            a.save_first === 'yes' || a.cool_off !== 'wont' ? 'pass' : 'warn',
+            `At a calm ~${fmt(Math.ceil(price / 4))}/week, ownership takes ~4 weeks without shock.`,
+            a.save_first === 'yes' ? 85 : a.can_afford === 'easy' ? 70 : 45, 1.0);
+        addParam(P, 'Advisor Math', 'Stress-adjusted greenlight',
+            a.can_afford === 'easy' && a.money_source !== 'borrow' && a.debt_risk === 'no' ? 'pass' :
+                a.can_afford === 'ok' && nec >= 4 ? 'warn' : 'fail',
+            'Greenlight only when cash comfort + no debt + clear need align.',
+            a.can_afford === 'easy' && a.debt_risk === 'no' ? 90 : nec >= 4 ? 55 : 30, 1.4);
+        addParam(P, 'Advisor Math', 'Delay cost vs buy cost',
+            a.urgency_timing === 'can_wait' || a.urgency_timing === 'no_deadline' || nec >= 4 ? 'pass' : 'warn',
+            nec >= 4 ? 'Delay has real function cost — speed can be rational.' : 'Delay is cheap when need is soft.',
+            nec >= 4 ? 75 : 70, 0.8);
 
         return P;
     }
 
-    function buildLifeParameters(a, price, meta) {
+    function buildLifeParameters(rawAnswers, price, meta) {
+        const a = normalizeLifeAnswers(rawAnswers);
         const P = [];
         const heart = num(a.heart_pull);
         const memory = num(a.memory_value);
@@ -459,6 +596,18 @@ const BuyModule = (() => {
             a.can_afford === 'easy' || a.can_afford === 'ok' ? 'pass' : a.can_afford === 'tight' ? 'warn' : a.can_afford ? 'fail' : 'info',
             a.can_afford ? `Money feel: ${a.can_afford}.` : 'Not answered.',
             affordMap[a.can_afford] || 40, 1.8);
+        addParam(P, 'Money & Sanity', 'Funding / timing discipline',
+            a.money_timing === 'planned' || a.money_timing === 'saved' ? 'pass' :
+                a.money_timing === 'payday' || a.money_timing === 'stretch' ? 'warn' :
+                    a.money_timing === 'owe' ? 'fail' : 'info',
+            a.money_timing === 'payday' ? 'Payday bounce spending is a classic leak.' :
+                a.money_timing ? `Timing: ${a.money_timing}.` : 'Not answered.',
+            ({ planned: 90, saved: 85, payday: 35, stretch: 40, owe: 12 }[a.money_timing] || 45), 1.5);
+        addParam(P, 'Money & Sanity', 'Basics still covered this week',
+            a.basic_needs === 'yes' ? 'pass' : a.basic_needs === 'tight' ? 'warn' : a.basic_needs === 'no' ? 'fail' : 'info',
+            a.basic_needs === 'no' ? 'Never fund a treat by risking food/travel/bills.' :
+                a.basic_needs ? `Basics: ${a.basic_needs}.` : 'Not answered.',
+            ({ yes: 90, tight: 45, no: 10 }[a.basic_needs] || 45), 1.7);
         addParam(P, 'Money & Sanity', 'Cost scale for this moment',
             price <= 200 ? 'pass' : price <= 800 ? 'pass' : price <= 3000 ? 'warn' : 'info',
             `${fmt(price)} for a ${meta.type} moment.`,
@@ -573,58 +722,52 @@ const BuyModule = (() => {
                 `You mentioned: ${meta.alt}. Weigh feeling kept vs money kept.`, 60, 0.7);
         }
 
+        addParam(P, 'Choice Quality', 'Flex / post motive',
+            a.social_signal === 'none' ? 'pass' : a.social_signal === 'little' ? 'warn' : a.social_signal === 'yes' ? 'fail' : 'info',
+            a.social_signal === 'yes' ? 'If posting is the point, joy is rented from strangers.' :
+                a.social_signal ? `Signal motive: ${a.social_signal}.` : 'Not answered.',
+            ({ none: 88, little: 55, yes: 25 }[a.social_signal] || 50), 1.0);
+
         const lifeExtras = [
-            ['Life Audit', 'Not only saving, also living', heart >= 3 && memory >= 3 && a.can_afford !== 'no', 'Joy + meaning present.'],
-            ['Life Audit', 'Not only spending, also sense', waste <= 3 && a.habit_loop !== 'yes', 'Not mindless.'],
-            ['Life Audit', 'Answers completeness', LIFE_QUESTIONS.filter(q => q.type !== 'text').every(q => a[q.id]), 'Full check-in done.'],
-            ['Life Audit', 'Heart note shared', !!(a.notes && a.notes.length > 6), 'You opened up a bit.'],
-            ['Life Audit', 'Small affordable comfort', price > 0 && price <= 300 && a.can_afford !== 'no' && heart >= 3, 'Small joy window.'],
-            ['Life Audit', 'Big ticket needs bigger why', price < 3000 || memory >= 4 || a.scarcity === 'rare' || a.connection === 'yes', 'Cost matched by meaning.'],
-            ['Life Audit', 'Rest without excess', a.why_now === 'rest' && price <= 1000, 'Gentle rest choice.'],
-            ['Life Audit', 'Social gold', a.connection === 'yes' && a.company_quality === 'yes', 'Good people + shared plan.'],
-            ['Life Audit', 'FOMO brake', a.why_now !== 'fomo' && a.obligation !== 'pressure', 'Free of fake urgency.'],
-            ['Life Audit', 'Savor plan', a.presence === 'yes', 'You\'ll actually taste the moment.'],
-            ['Life Audit', 'No hangover spend', a.tomorrow_feel === 'glad' || a.tomorrow_feel === 'fine', 'Tomorrow stays kind.'],
-            ['Life Audit', 'Break-the-strictness mercy', a.self_kindness === 'yes' && a.recent_treats === 'long', 'Mercy treat after discipline.'],
-            ['Life Audit', 'Stop-the-streak wisdom', a.recent_treats !== 'streak' && a.habit_loop !== 'yes', 'Not feeding a binge.'],
-            ['Life Audit', 'Home dignity', a.home_option !== 'yes' || heart >= 4 || a.connection === 'yes', 'Leaving home has a reason.'],
-            ['Life Audit', 'Body kindness', a.health !== 'bad', 'Body respected.']
+            ['Advisor Checks', 'Not only saving — also living', heart >= 3 && memory >= 3 && a.can_afford !== 'no' && a.basic_needs !== 'no', 'Joy + meaning + basics safe.'],
+            ['Advisor Checks', 'Not only spending — also sense', waste <= 3 && a.habit_loop !== 'yes' && a.money_timing !== 'owe', 'Not mindless or borrowed.'],
+            ['Advisor Checks', 'Intake completeness', LIFE_QUESTIONS.filter(q => q.type !== 'text').every(q => rawAnswers[q.id]), 'Full check-in done.'],
+            ['Advisor Checks', 'Heart note shared', !!(a.notes && a.notes.length > 6), 'Context sharpens advice.'],
+            ['Advisor Checks', 'Small affordable comfort', price <= 300 && a.can_afford !== 'no' && heart >= 3 && a.basic_needs === 'yes', 'Small joy window.'],
+            ['Advisor Checks', 'Big ticket needs bigger why', price < 3000 || memory >= 4 || a.scarcity === 'rare' || a.people_plan === 'gold', 'Cost matched by meaning.'],
+            ['Advisor Checks', 'Rest without excess', a.why_now !== 'rest' || (price <= 1000 && a.can_afford !== 'no'), 'Gentle rest choice.'],
+            ['Advisor Checks', 'Social gold', a.people_plan === 'gold', 'Good people + shared plan.'],
+            ['Advisor Checks', 'FOMO brake', a.why_now !== 'fomo' && a.obligation !== 'pressure', 'Free of fake urgency.'],
+            ['Advisor Checks', 'Savor plan', a.presence === 'yes', 'You\'ll actually taste the moment.'],
+            ['Advisor Checks', 'No hangover spend', a.tomorrow_feel === 'glad' || a.tomorrow_feel === 'fine', 'Tomorrow stays kind.'],
+            ['Advisor Checks', 'Mercy after discipline', a.self_kindness === 'yes' && a.recent_treats === 'long' && a.can_afford !== 'no', 'Mercy treat after discipline.'],
+            ['Advisor Checks', 'Stop the streak', a.recent_treats !== 'streak' && a.habit_loop !== 'yes', 'Not feeding a binge.'],
+            ['Advisor Checks', 'Home dignity', a.home_option !== 'yes' || heart >= 4 || a.people_plan === 'gold', 'Leaving home has a reason.'],
+            ['Advisor Checks', 'Body kindness', a.health !== 'bad', 'Body respected.'],
+            ['Advisor Checks', 'Payday bounce avoided', a.money_timing !== 'payday', 'Not spending because money just landed.'],
+            ['Advisor Checks', 'Your advisor rule held',
+                (a.advisor_rule === 'shrink' && (a.alternative_home === 'cheap_easy' || a.alternative_home === 'home_ok' || a.alternative_home === 'partial')) ||
+                (a.advisor_rule === 'share' && a.people_plan === 'gold') ||
+                (a.advisor_rule === 'savor' && a.presence === 'yes') ||
+                (a.advisor_rule === 'sleep') ||
+                (a.advisor_rule === 'mercy' && price <= 500 && a.can_afford !== 'no'),
+                'Obey the rule you set for yourself.', 1.4]
         ];
-        lifeExtras.forEach(([cat, label, good, detail]) => {
-            addParam(P, cat, label, good ? 'pass' : 'warn', detail, good ? 86 : 40, 0.65);
+        lifeExtras.forEach(([cat, label, good, detail, w]) => {
+            addParam(P, cat, label, good ? 'pass' : 'warn', detail, good ? 88 : 38, w || 0.8);
         });
 
-        const more = [
-            'Phone-away for 20 minutes', 'Photo memories vs presence', 'Outfit stress unnecessary?',
-            'Travel logistics energy', 'Queue / crowd tolerance', 'Weather / comfort fit',
-            'Food guilt vs nourishment', 'Sugar crash honesty', 'Late-night order trap',
-            'Weekend scarcity myth', 'Payday bounce myth', 'Group bill awkwardness',
-            'Split-cost fairness', 'Gift economy reciprocity', 'Celebration legitimacy',
-            'Grief comfort spending', 'Loneliness spending', 'Boredom spending',
-            'Achievement reward sizing', 'Study-break proportionality', 'Workout reward loop',
-            'Family expectation pressure', 'Partner expectation pressure', 'Friend flex pressure',
-            'Instagram aftertaste', 'Story-post motive check', 'Silent joy validity',
-            'Nature cheaper analog', 'Walk + tea analog', 'Cook-with-music analog',
-            'Library / free event analog', 'Temple of rest at home', 'Call a friend instead',
-            'Journal the urge 5 minutes', 'Drink water first', 'Sleep debt check',
-            'Caffeine / hunger confusion', 'Decision fatigue evening', 'Morning clarity test',
-            'Budget envelope mental', 'Weekly joy allowance idea', 'Monthly experience fund idea',
-            'One yes one no rule', 'Savor slower cheaper', 'Tip kindness included',
-            'Leave no mess for future-you', 'Transit safety', 'Return-home energy'
-        ];
-        more.forEach((label, i) => {
-            const base = clamp(
-                58
-                + (heart - 3) * 4
-                + (memory - 3) * 4
-                + (3 - waste) * 5
-                + (a.can_afford === 'easy' ? 8 : a.can_afford === 'no' ? -14 : 0)
-                + (a.tomorrow_feel === 'glad' ? 8 : a.tomorrow_feel === 'regret' ? -12 : 0)
-                + ((i % 5) - 2) * 2
-            );
-            addParam(P, 'Wide Lens', label, base >= 70 ? 'pass' : base >= 45 ? 'warn' : 'fail',
-                `Everyday wisdom mark #${i + 1}.`, base, 0.35);
-        });
+        addParam(P, 'Advisor Math', 'Cost-to-meaning ratio',
+            (memory >= 4 || a.people_plan === 'gold' || a.scarcity === 'rare') && a.can_afford !== 'no' ? 'pass' :
+                price <= 400 && heart >= 3 ? 'pass' : 'warn',
+            'Pay for meaning and presence — not for autopilot.',
+            memory >= 4 || a.people_plan === 'gold' ? 85 : price <= 400 ? 70 : 45, 1.2);
+        addParam(P, 'Advisor Math', 'Safer substitute test',
+            a.alternative_home === 'no_alt' || heart >= 4 || a.scarcity === 'rare' ? 'pass' : 'warn',
+            a.alternative_home === 'cheap_easy' || a.alternative_home === 'home_ok'
+                ? 'A cheaper/home path exists — use it unless meaning is rare/high.'
+                : 'No clean substitute — paid option can be rational.',
+            a.alternative_home === 'no_alt' ? 78 : heart >= 4 ? 70 : 42, 1.1);
 
         return P;
     }
@@ -642,7 +785,8 @@ const BuyModule = (() => {
         return { overall: wSum > 0 ? Math.round(sSum / wSum) : 50, pass, warn, fail, info, total: parameters.length };
     }
 
-    function lifeBalanceMeter(answers, price, overall, kind) {
+    function lifeBalanceMeter(rawAnswers, price, overall, kind) {
+        const answers = kind === 'life' ? normalizeLifeAnswers(rawAnswers) : normalizeProductAnswers(rawAnswers);
         let meter = 50;
         const heart = num(answers.heart_pull || answers.joy_value);
         const future = num(answers.future_thanks || answers.memory_value);
@@ -654,20 +798,23 @@ const BuyModule = (() => {
         else if (answers.can_afford === 'tight') meter -= 12;
         else if (answers.can_afford === 'no') meter -= 28;
 
-        if (answers.debt_risk === 'yes') meter -= 20;
+        if (answers.debt_risk === 'yes' || answers.money_source === 'borrow' || answers.money_timing === 'owe') meter -= 20;
         if (answers.mood === 'yes' || answers.why_now === 'fomo') meter -= 10;
         if (num(answers.impulse) >= 4) meter -= 8;
         if (answers.habit_loop === 'yes' || answers.recent_treats === 'streak' || answers.recent_buys === 'many') meter -= 12;
+        if (answers.urgency_timing === 'need_now_night' || answers.urgency_timing === 'payday' || answers.money_timing === 'payday') meter -= 10;
+        if (answers.basic_needs === 'no') meter -= 18;
+        if (answers.focus_risk === 'yes') meter -= 8;
 
-        // Life beyond saving — boost intentional joy when affordable
         if ((heart >= 4 || future >= 4) && answers.can_afford !== 'no' && answers.can_afford !== 'tight') meter += 10;
         if (answers.life_beyond === 'yes' || answers.self_kindness === 'yes') meter += 6;
-        if (answers.connection === 'yes' && answers.company_quality === 'yes') meter += 8;
+        if ((answers.connection === 'yes' && answers.company_quality === 'yes') || answers.people_plan === 'gold') meter += 8;
         if (answers.scarcity === 'rare') meter += 6;
         if (nec >= 4) meter += 8;
         if (waste >= 4) meter -= 10;
         if (answers.tomorrow_feel === 'glad') meter += 8;
         if (answers.tomorrow_feel === 'regret') meter -= 14;
+        if (answers.cool_off === 'waited' || answers.money_source === 'saved_safe') meter += 6;
 
         if (price > 5000 && answers.can_afford !== 'easy') meter -= 8;
         if (price <= 300 && kind === 'life' && answers.can_afford !== 'no') meter += 5;
@@ -694,16 +841,17 @@ const BuyModule = (() => {
         return { meter, band, icon, title, message };
     }
 
-    function buildProductVerdict(overall, meter, answers, price, product) {
+    function buildProductVerdict(overall, meter, rawAnswers, price, product) {
+        const answers = normalizeProductAnswers(rawAnswers);
         const nec = num(answers.necessity);
         const joy = num(answers.joy_value);
         let action;
         if (meter.band === 'green' && overall >= 65) action = 'BUY NOW';
         else if (meter.band === 'green') action = 'BUY — WITH EYES OPEN';
-        else if (meter.band === 'yellow' && nec >= 4) action = 'BUY ONLY IF CRITICAL — ELSE WAIT';
-        else if (meter.band === 'yellow' && joy >= 4 && answers.can_afford === 'easy' && answers.life_beyond === 'yes') action = 'SMALL YES — OR WAIT ONE NIGHT';
+        else if (meter.band === 'yellow' && nec >= 4 && answers.money_source !== 'borrow') action = 'BUY ONLY IF CRITICAL — ELSE WAIT';
+        else if (meter.band === 'yellow' && joy >= 4 && answers.can_afford === 'easy' && answers.life_beyond === 'yes') action = 'CONDITIONAL YES — WAIT ONE NIGHT FIRST';
         else if (meter.band === 'yellow') action = 'WAIT & SAVE';
-        else if (nec >= 5) action = 'LAST RESORT — MINIMIZE COST';
+        else if (nec >= 5 && answers.debt_risk !== 'yes') action = 'LAST RESORT — BUY CHEAPEST THAT WORKS';
         else action = 'DO NOT BUY YET';
 
         const pros = [];
@@ -712,85 +860,138 @@ const BuyModule = (() => {
         if (num(answers.work_impact) >= 4) pros.push('Work/study is actually hampered without it.');
         if (answers.usage_freq === 'daily' || answers.usage_freq === 'weekly') pros.push('You expect frequent real use.');
         if (answers.lifespan === 'years') pros.push('Long useful life improves value.');
-        if (answers.researched === 'deep') pros.push('You researched properly.');
-        if (answers.can_afford === 'easy') pros.push('You can afford it without stress.');
+        if (answers.research_influence === 'deep_own') pros.push('Deep own research — not hype.');
+        if (answers.can_afford === 'easy' && answers.money_source === 'saved_safe') pros.push('Funded from savings with buffer intact.');
+        if (answers.cool_off === 'waited') pros.push('You already cooled off — desire survived time.');
         if (joy >= 4 && answers.life_beyond === 'yes') pros.push('You\'ve been strict — thoughtful joy has a place.');
         if (product.rating && product.rating >= 4.2) pros.push(`Solid rating (${product.rating.toFixed(1)}★).`);
 
         if (answers.can_afford === 'no' || answers.can_afford === 'tight') cons.push('Money comfort is low for this price.');
+        if (answers.money_source === 'borrow' || answers.debt_risk === 'yes') cons.push('Debt/borrow funding is unacceptable for this.');
         if (num(answers.impulse) >= 4) cons.push('Impulse is high.');
-        if (answers.mood === 'yes') cons.push('Mood-driven buying detected.');
-        if (answers.already_own === 'yes') cons.push('You already own something similar.');
+        if (answers.mood === 'yes') cons.push('Mood / unbox therapy detected.');
+        if (answers.already_own_raw === 'keep_both') cons.push('You would keep both — upgrade tax.');
+        else if (answers.already_own === 'yes') cons.push('You already own something similar.');
         if (answers.usage_freq === 'rarely') cons.push('Rare usage makes cost-per-use ugly.');
-        if (answers.debt_risk === 'yes') cons.push('Would create or worsen debt.');
         if (answers.save_first === 'yes') cons.push('Even you admit you could wait and save.');
-        if (num(answers.waste_risk) >= 4) cons.push('High chance of unused clutter.');
+        if (num(answers.waste_risk) >= 4 || answers.setup_skill === 'doubt') cons.push('High chance it stays underused.');
+        if (answers.urgency_timing === 'need_now_night' || answers.urgency_timing === 'payday') cons.push('Cart timing is emotionally risky.');
+        if (answers.opportunity_cost === 'bills' || answers.opportunity_cost === 'debt') cons.push('This competes with obligations.');
+
+        const conditions = [];
+        if (action.includes('WAIT') || action.includes('DO NOT') || action.includes('CONDITIONAL')) {
+            if (answers.cool_off !== 'waited') conditions.push('Sleep on it 48 hours before any payment.');
+            if (answers.secondhand !== 'yes' && answers.quality_need !== 'yes') conditions.push('Price-check one cheaper/used option first.');
+            if (answers.tco_extras === 'unknown') conditions.push('List all extras (case, cable, sub) before deciding.');
+            conditions.push(`If still yes later, save ~${fmt(Math.ceil(price / 4))}/week instead of impulse-buying.`);
+        } else {
+            conditions.push('Buy only the exact model you researched — no cart upsells.');
+            if (answers.already_own_raw === 'replace') conditions.push('Retire/sell the old item within 7 days (one-in one-out).');
+            conditions.push('After purchase, use it within 7 days or reverse/return.');
+        }
+
+        const costPerUseHint = (() => {
+            const freq = answers.usage_freq;
+            const years = answers.lifespan === 'years' ? 3 : answers.lifespan === 'year' ? 1 : answers.lifespan === 'months' ? 0.4 : 0.1;
+            const uses = freq === 'daily' ? 300 * years : freq === 'weekly' ? 50 * years : freq === 'monthly' ? 12 * years : 3 * years;
+            if (!uses || !price) return null;
+            return Math.round(price / Math.max(uses, 1));
+        })();
 
         const brother = [
-            `Alright — I looked at the product and your honest answers. (Financial Ledger stays out of this — we keep that separate.)`,
-            `Price on the table: ${fmt(price)}.`,
+            `Senior financial advisor read — judged from your questionnaire + product signals only (Financial Ledger is separate on purpose).`,
+            `Ticket: ${fmt(price)}. Funding: ${answers.money_source || 'unspecified'}. Stress if paid today: ${answers.can_afford || 'unspecified'}. Necessity ${nec}/5 · joy ${joy}/5.`,
+            costPerUseHint != null
+                ? `Rough cost-per-use (from your frequency + lifespan answers): ~${fmt(costPerUseHint)} per use. If that number feels silly for what you get, wait or downsize.`
+                : `I could not estimate cost-per-use cleanly — tighten frequency/lifespan answers next time.`,
             meter.band === 'green'
-                ? `Life-balance meter ${meter.meter}/100 — green. Cash comfort and purpose are aligned enough.`
+                ? `Life-balance ${meter.meter}/100 (green). Cash comfort and purpose are aligned enough for a clear-headed yes.`
                 : meter.band === 'yellow'
-                    ? `Life-balance meter ${meter.meter}/100 — yellow. Affordable-ish, but not a free pass.`
-                    : `Life-balance meter ${meter.meter}/100 — red. I'd stop your hand on the buy button.`,
-            `Judgment score: ${overall}/100 across the full marked audit.`,
-            action.includes('WAIT') || action.includes('DO NOT')
-                ? `My call: ${action}. Saving ${fmt(Math.ceil(price / 4))}/week is a calm path if you still want it.`
-                : `My call: ${action}. If you proceed, stay present with why you bought it — not just the unboxing hit.`,
-            `Remember: saving money matters, and so does a life that feels alive. The win is avoiding waste — not avoiding joy.`,
-            answers.notes ? `You also told me: “${answers.notes}”. I weighed that.` : `Next time, add a note — context makes me sharper.`
+                    ? `Life-balance ${meter.meter}/100 (yellow). This is a conditional file — yes only if the conditions below are met.`
+                    : `Life-balance ${meter.meter}/100 (red). I would decline this purchase today and protect the buffer.`,
+            `Composite judgment: ${overall}/100 across the full marked audit.`,
+            `Hard recommendation: ${action}.`,
+            answers.opportunity_cost === 'bills' || answers.opportunity_cost === 'debt'
+                ? `Priority call: this competes with ${answers.opportunity_cost}. Obligations beat upgrades.`
+                : `Opportunity cost: money otherwise protects “${answers.opportunity_cost || 'unspecified'}”.`,
+            answers.cool_off === 'wont' || answers.urgency_timing === 'need_now_night' || answers.mood === 'yes'
+                ? `Process risk is elevated (night cart / mood / no cool-off). Good advisors force a pause before payment — not after regret.`
+                : `Process looks calmer. Still: buy the researched model only, no cart upsells.`,
+            `Standard I use: a good buy is useful weekly+, funded without anxiety, survives a 48h cool-off, and future-you still thanks you in 6 months.`,
+            answers.notes ? `Your note weighed in: “${answers.notes}”.` : `Tip: add advisor notes (deadline, EMI, why this model) for even sharper next verdicts.`
         ];
-        return { action, pros, cons, brother };
+        return { action, pros, cons, brother, conditions };
     }
 
-    function buildLifeVerdict(overall, meter, answers, price, meta) {
+    function buildLifeVerdict(overall, meter, rawAnswers, price, meta) {
+        const answers = normalizeLifeAnswers(rawAnswers);
         const heart = num(answers.heart_pull);
         const memory = num(answers.memory_value);
         let action;
         if (meter.band === 'green' && overall >= 65) action = 'YES — DO IT & SAVOR IT';
         else if (meter.band === 'green') action = 'YES — KEEP IT INTENTIONAL';
-        else if (meter.band === 'yellow' && (memory >= 4 || answers.scarcity === 'rare' || answers.connection === 'yes')) action = 'YES IF MEANING IS HIGH — ELSE SHRINK IT';
+        else if (meter.band === 'yellow' && (memory >= 4 || answers.scarcity === 'rare' || answers.people_plan === 'gold')) action = 'YES IF MEANING IS HIGH — ELSE SHRINK IT';
         else if (meter.band === 'yellow') action = 'PAUSE — OR CHOOSE A LIGHTER VERSION';
-        else if (answers.self_kindness === 'yes' && price <= 300 && answers.can_afford !== 'no') action = 'TINY MERCY TREAT OK — KEEP IT SMALL';
+        else if (answers.self_kindness === 'yes' && price <= 300 && answers.can_afford !== 'no' && answers.basic_needs === 'yes') action = 'TINY MERCY TREAT OK — KEEP IT SMALL';
         else action = 'SKIP — CARE FOR YOURSELF ANOTHER WAY';
 
         const pros = [];
         const cons = [];
         if (heart >= 4) pros.push('Your heart genuinely wants this.');
         if (memory >= 4) pros.push('Strong memory potential.');
-        if (answers.connection === 'yes') pros.push('It deepens a real human connection.');
+        if (answers.people_plan === 'gold') pros.push('Shared with good people — high life ROI.');
         if (answers.scarcity === 'rare') pros.push('Rare window — timing matters.');
-        if (answers.can_afford === 'easy') pros.push('No money anxiety attached.');
+        if (answers.can_afford === 'easy' && answers.basic_needs === 'yes') pros.push('Affordable with basics safe.');
         if (answers.self_kindness === 'yes' && answers.recent_treats === 'long') pros.push('You\'ve been disciplined — a mindful yes can be healthy.');
         if (answers.presence === 'yes') pros.push('You plan to actually be present.');
         if (answers.tomorrow_feel === 'glad') pros.push('You expect to feel glad tomorrow.');
 
         if (answers.can_afford === 'no' || answers.can_afford === 'tight') cons.push('Money anxiety would tag along.');
+        if (answers.basic_needs === 'no') cons.push('Basics would be at risk.');
         if (answers.why_now === 'fomo') cons.push('FOMO is driving this.');
-        if (answers.habit_loop === 'yes' || answers.recent_treats === 'streak') cons.push('This feeds a spend streak / autopilot habit.');
+        if (answers.habit_loop === 'yes' || answers.recent_treats === 'streak') cons.push('Feeds a spend streak / autopilot habit.');
         if (num(answers.waste_feel) >= 4) cons.push('Your gut already calls it wasteful.');
         if (answers.tomorrow_feel === 'regret') cons.push('You already predict regret.');
         if (answers.obligation === 'pressure') cons.push('Pressure, not desire.');
         if (answers.presence === 'no') cons.push('You probably won\'t even savor it.');
         if (answers.health === 'bad') cons.push('Tomorrow\'s body pays interest.');
+        if (answers.social_signal === 'yes') cons.push('Flex/posting motive is in the mix.');
+        if (answers.money_timing === 'payday' || answers.money_timing === 'owe') cons.push('Funding timing is weak.');
+
+        const conditions = [];
+        if (action.includes('PAUSE') || action.includes('SKIP') || action.includes('SHRINK') || action.includes('TINY')) {
+            if (answers.alternative_home === 'home_ok' || answers.alternative_home === 'cheap_easy') conditions.push('Try the cheaper/home version first tonight.');
+            if (answers.advisor_rule === 'sleep' || meter.band !== 'green') conditions.push('If still craving it, decide tomorrow morning — not in the urge.');
+            if (price > 800) conditions.push('Shrink the plan (cheaper seat/dish/slot) before cancelling joy entirely.');
+            conditions.push('Protect basics first; joy second.');
+        } else {
+            conditions.push('Be fully present — phone away for the core of the experience.');
+            if (answers.people_plan === 'gold') conditions.push('Protect the people part — that\'s the real purchase.');
+            conditions.push('No stack-on extras (upgrades, impulse add-ons) after you say yes.');
+        }
 
         const brother = [
-            `Hey — this isn't only about being cheap. It's about spending like someone who wants both a future and a present.`,
-            `You're asking about: ${meta.title} (${fmt(price)}${meta.alt ? ` · alt: ${meta.alt}` : ''}).`,
+            `Senior advisor + big-brother hybrid: protect money without killing a life worth living.`,
+            `Decision: ${meta.title} · ${fmt(price)} · type: ${meta.typeLabel || meta.type}${meta.alt ? ` · cheaper path noted: ${meta.alt}` : ''}.`,
+            `Heart ${heart}/5 · memory ${memory}/5 · money feel: ${answers.can_afford || '—'} · basics: ${answers.basic_needs || '—'}.`,
             meter.band === 'green'
-                ? `Life-balance meter ${meter.meter}/100 — green. This can be living, not leaking.`
+                ? `Life-balance ${meter.meter}/100 (green). This can be living, not leaking — say yes and actually savor it.`
                 : meter.band === 'yellow'
-                    ? `Life-balance meter ${meter.meter}/100 — yellow. Maybe — but make it conscious.`
-                    : `Life-balance meter ${meter.meter}/100 — red. Care for the need underneath, not only the cart.`,
-            `Judgment score: ${overall}/100 with every parameter marked.`,
-            `My call: ${action}.`,
+                    ? `Life-balance ${meter.meter}/100 (yellow). Conditional: keep only if meaning beats the cheaper substitute.`
+                    : `Life-balance ${meter.meter}/100 (red). Care for the need underneath (rest, loneliness, boredom) — not the cart.`,
+            `Composite judgment: ${overall}/100 across the full marked audit.`,
+            `Hard recommendation: ${action}.`,
             answers.why_now === 'rest' || answers.body_energy === 'drained'
-                ? `If you're tired: rest is allowed. Ordering out / a small treat can be kindness — just don't let autopilot own you.`
-                : `Joy is allowed. Waste is optional. Choose the one that leaves you proud tomorrow.`,
-            answers.notes ? `I heard you: “${answers.notes}”.` : `If you tell me more next time, I'll advise even closer to your heart.`
+                ? `Tired-brain rule: rest is allowed. A small intentional comfort can be kindness — autopilot delivery/scroll-spend is not the same thing.`
+                : answers.people_plan === 'gold'
+                    ? `People premium: shared time with good company is often the highest-ROI “purchase” available. Protect presence over extras.`
+                    : `Joy is allowed. Waste is optional. Choose the version that leaves you proud tomorrow morning.`,
+            answers.habit_loop === 'yes' || answers.recent_treats === 'streak'
+                ? `Pattern alert: this sits on a streak/autopilot loop. Break the loop once — even with a tiny home version — so joy stays special.`
+                : `Pattern looks intentional enough; still skip stack-on upgrades after you decide.`,
+            answers.notes ? `I heard you: “${answers.notes}”.` : `Next time: tell me who you're with and what feeling you want — advice gets sharper.`
         ];
-        return { action, pros, cons, brother };
+        return { action, pros, cons, brother, conditions };
     }
 
     function statusIcon(st) {
@@ -870,9 +1071,18 @@ const BuyModule = (() => {
         root.appendChild(prod);
 
         const letter = Utils.el('div', { className: 'glass-card buy-brother-card' });
-        letter.appendChild(Utils.el('h4', { className: 'card-title', textContent: kind === 'life' ? 'Straight talk (with heart)' : 'Straight talk' }));
+        letter.appendChild(Utils.el('h4', { className: 'card-title', textContent: kind === 'life' ? 'Senior advice (with heart)' : 'Senior financial advice' }));
         verdict.brother.forEach(line => letter.appendChild(Utils.el('p', { className: 'buy-brother-line', textContent: line })));
         root.appendChild(letter);
+
+        if (verdict.conditions && verdict.conditions.length) {
+            const cond = Utils.el('div', { className: 'glass-card buy-conditions-card' });
+            cond.appendChild(Utils.el('h4', { className: 'card-title', textContent: 'Conditions / next steps' }));
+            verdict.conditions.forEach((c, i) => {
+                cond.appendChild(Utils.el('div', { className: 'buy-condition-item', textContent: `${i + 1}. ${c}` }));
+            });
+            root.appendChild(cond);
+        }
 
         const pc = Utils.el('div', { className: 'buy-proscons' });
         const prosC = Utils.el('div', { className: 'glass-card buy-pros' });
@@ -919,30 +1129,68 @@ const BuyModule = (() => {
         root.appendChild(audit);
 
         const actions = Utils.el('div', { className: 'buy-report-actions' });
-        const saveBtn = Utils.el('button', { className: 'btn-primary', type: 'button', textContent: '💾 Save this verdict' });
-        saveBtn.addEventListener('click', () => saveDecision(report));
-        const againBtn = Utils.el('button', { className: 'btn-secondary', type: 'button', textContent: '↺ New analysis' });
+        if (!report.fromHistory) {
+            const saveBtn = Utils.el('button', {
+                className: 'btn-primary',
+                type: 'button',
+                textContent: report.savedId ? '✓ Saved — update analysis' : '💾 Save full analysis'
+            });
+            saveBtn.addEventListener('click', async () => {
+                await saveDecision(report);
+                saveBtn.textContent = '✓ Saved — update analysis';
+            });
+            actions.appendChild(saveBtn);
+            if (report.savedId) {
+                actions.appendChild(Utils.el('div', {
+                    className: 'buy-history-banner',
+                    textContent: 'Full analysis auto-saved under Past verdicts — reopen anytime'
+                }));
+            }
+        } else {
+            actions.appendChild(Utils.el('div', {
+                className: 'buy-history-banner',
+                textContent: `Saved verdict · ${report.savedDate || ''} · full advice, conditions, pros/cons + every parameter mark`
+            }));
+        }
+        const againBtn = Utils.el('button', { className: 'btn-secondary', type: 'button', textContent: report.fromHistory ? '← Back to list' : '↺ New analysis' });
         againBtn.addEventListener('click', () => {
             root.classList.add('hidden');
             root.innerHTML = '';
-            const target = kind === 'life' ? 'life-input-section' : 'buy-input-section';
-            document.getElementById(target)?.scrollIntoView({ behavior: 'smooth' });
+            if (report.fromHistory) {
+                document.getElementById('buy-history')?.scrollIntoView({ behavior: 'smooth' });
+            } else {
+                const target = kind === 'life' ? 'life-input-section' : 'buy-input-section';
+                document.getElementById(target)?.scrollIntoView({ behavior: 'smooth' });
+            }
         });
-        actions.appendChild(saveBtn);
         actions.appendChild(againBtn);
         root.appendChild(actions);
         root.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
 
-    async function saveDecision(report) {
+    async function saveDecision(report, opts = {}) {
+        // Persist the complete analysis so it can be reopened later
+        const id = report.savedId || Utils.uid();
+        const createdAt = report.savedAt || Date.now();
+        const date = report.savedDate || Utils.todayStr();
+        const snapshot = {
+            kind: report.kind,
+            subject: report.subject,
+            price: report.price,
+            answers: report.answers,
+            parameters: report.parameters,
+            stats: report.stats,
+            meter: report.meter,
+            verdict: report.verdict
+        };
         const rec = {
-            id: Utils.uid(),
-            createdAt: Date.now(),
-            date: Utils.todayStr(),
+            id,
+            createdAt,
+            date,
             kind: report.kind || 'product',
-            title: report.subject.title || 'Decision',
-            url: report.subject.url || '',
-            host: report.subject.host || '',
+            title: (report.subject && report.subject.title) || 'Decision',
+            url: (report.subject && report.subject.url) || '',
+            host: (report.subject && report.subject.host) || '',
             price: report.price,
             meter: report.meter.meter,
             band: report.meter.band,
@@ -951,11 +1199,35 @@ const BuyModule = (() => {
             paramCount: report.stats.total,
             pass: report.stats.pass,
             warn: report.stats.warn,
-            fail: report.stats.fail
+            fail: report.stats.fail,
+            fullReport: snapshot
         };
         await ThriveDB.put('buyDecisions', rec);
-        Utils.toast('Verdict saved', 'success');
+        report.savedId = id;
+        report.savedAt = createdAt;
+        report.savedDate = date;
+        _lastReport = report;
+        if (!opts.silent) Utils.toast('Full analysis saved — reopen anytime from Past verdicts', 'success');
         await renderHistory();
+        return rec;
+    }
+
+    function openSavedVerdict(rec) {
+        if (!rec.fullReport) {
+            Utils.toast('This older save has scores only. Re-run analysis — new saves keep the full advice + audit.', 'warning');
+            return;
+        }
+        const report = Object.assign({}, rec.fullReport, {
+            fromHistory: true,
+            savedId: rec.id,
+            savedAt: rec.createdAt,
+            savedDate: rec.date
+        });
+        if (report.kind === 'life') setMode('life', { keepReport: true });
+        else setMode('product', { keepReport: true });
+        _lastReport = report;
+        renderReport(report);
+        document.getElementById('buy-report')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
 
     async function renderHistory() {
@@ -967,26 +1239,45 @@ const BuyModule = (() => {
         if (!all.length) {
             box.appendChild(Utils.el('div', { className: 'empty-state' },
                 Utils.el('div', { className: 'empty-state-emoji', textContent: '🛒' }),
-                Utils.el('div', { className: 'empty-state-text', textContent: 'No past verdicts yet. Run your first analysis above.' })
+                Utils.el('div', { className: 'empty-state-text', textContent: 'No past verdicts yet. Run an analysis and save it to reopen the full report later.' })
             ));
             return;
         }
-        all.slice(0, 20).forEach(rec => {
+        all.slice(0, 30).forEach(rec => {
             const card = Utils.el('div', { className: `buy-history-item buy-band-${rec.band || 'yellow'}` });
             card.appendChild(Utils.el('div', { className: 'buy-history-top' },
                 Utils.el('strong', { textContent: `${rec.kind === 'life' ? '🌙 ' : '🛒 '}${rec.title || 'Decision'}` }),
                 Utils.el('span', { className: 'buy-history-meter', textContent: `${rec.meter ?? '—'}` })
             ));
             card.appendChild(Utils.el('div', { className: 'buy-history-meta', textContent:
-                `${fmt(rec.price || 0)} · ${rec.action || ''} · ${rec.date || ''}`
+                `${fmt(rec.price || 0)} · ${rec.action || ''} · ${rec.date || ''}` +
+                (rec.fullReport ? ' · full analysis saved' : ' · scores only')
             }));
+            const btns = Utils.el('div', { className: 'buy-history-actions' });
+            const view = Utils.el('button', {
+                className: 'buy-history-view',
+                type: 'button',
+                textContent: rec.fullReport ? 'View analysis' : 'No full save'
+            });
+            view.disabled = !rec.fullReport;
+            view.addEventListener('click', (e) => {
+                e.stopPropagation();
+                openSavedVerdict(rec);
+            });
             const del = Utils.el('button', { className: 'buy-history-del', type: 'button', textContent: 'Delete' });
-            del.addEventListener('click', async () => {
+            del.addEventListener('click', async (e) => {
+                e.stopPropagation();
                 await ThriveDB.remove('buyDecisions', rec.id);
                 Utils.toast('Removed', 'warning');
                 renderHistory();
             });
-            card.appendChild(del);
+            btns.appendChild(view);
+            btns.appendChild(del);
+            card.appendChild(btns);
+            if (rec.fullReport) {
+                card.style.cursor = 'pointer';
+                card.addEventListener('click', () => openSavedVerdict(rec));
+            }
             box.appendChild(card);
         });
     }
@@ -1196,8 +1487,9 @@ const BuyModule = (() => {
                 price, answers, parameters, stats, meter, verdict
             };
             _lastReport = report;
+            await saveDecision(report, { silent: true });
             renderReport(report);
-            Utils.toast('Full report ready', 'success');
+            Utils.toast('Full report ready · saved under Past verdicts', 'success');
         } catch (err) {
             console.error('[BuyModule]', err);
             Utils.toast(err.message || 'Analysis failed', 'error');
@@ -1248,8 +1540,9 @@ const BuyModule = (() => {
                 price, answers, parameters, stats, meter, verdict
             };
             _lastReport = report;
+            await saveDecision(report, { silent: true });
             renderReport(report);
-            Utils.toast('Full report ready', 'success');
+            Utils.toast('Full report ready · saved under Past verdicts', 'success');
         } catch (err) {
             console.error('[BuyModule]', err);
             Utils.toast(err.message || 'Analysis failed', 'error');
